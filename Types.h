@@ -1,0 +1,39 @@
+
+#ifndef RXBEE_TYPES_H
+#define RXBEE_TYPES_H
+
+namespace RXBee
+{
+   
+enum class ApiID : uint8_t 
+{
+    UNKOWN = 0x00,
+    INVALID = 0x01,
+
+    AT_COMMAND = 0x08,
+    AT_QUEUE_COMMAND = 0x09,
+    TRANSMIT_REQUEST = 0x10,
+    EXPLICIT_ADDRESSING_COMMAND = 0x11,
+    REMOTE_AT_COMMAND = 0x17,
+
+    AT_COMMAND_RESPONSE = 0x88,
+    MODEM_STATUS = 0x8A,
+    TRANSMIT_STATUS = 0x8B,
+    ROUTE_INFO_PACKET = 0x8D,
+    AGGREGATE_ADDRESSING_UPDATE = 0x8E,
+    RECEIVE_PACKET = 0x90,
+    EXPLICIT_RX_INDICATOR = 0x91,
+    IO_DATA_SAMPLE_RX_INDICATOR = 0x92,
+    NODE_ID_INDICATOR = 0x95,
+    REMOTE_AT_COMMAND_RESPONSE = 0x97
+};
+
+enum class ApiMode
+{
+    TRANSPARENT = 0x00,
+    UNESCAPED = 0x01,
+    ESCAPED = 0x02
+};
+
+} // namespace RXBee
+#endif // XBEE_TYPES_H
