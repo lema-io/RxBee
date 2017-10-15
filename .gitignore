@@ -1,0 +1,10 @@
+*.o
+*.a
+*.d
+rxbee.X/nbproject/private/
+rxbee.X/nbproject/Package-default.bash
+rxbee.X/nbproject/Makefile-variables.mk
+rxbee.X/nbproject/Makefile-local-default.mk
+rxbee.X/nbproject/Makefile-impl.mk
+rxbee.X/nbproject/Makefile-genesis.properties
+rxbee.X/nbproject/Makefile-default.mk
