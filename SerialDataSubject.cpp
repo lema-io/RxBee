@@ -35,21 +35,19 @@ void SerialDataSubject::Unsubscribe(SerialDataObserver* observer)
     }
 }
 
-void SerialDataSubject::Next(const uint64_t source_addr, 
-                             const std::vector<uint8_t>& data)
-{
-    for (uint16_t i = 0; i < observers.size(); ++i)
-    {
-        observers[i]->OnNext(source_addr, data);
-    }
-}
-
-
 void SerialDataSubject::Next(const std::vector<uint8_t>& data)
 {
     for (uint16_t i = 0; i < observers.size(); ++i)
     {
         observers[i]->OnNext(data);
+    }  
+}
+
+void SerialDataSubject::Next(const uint8_t* data, const uint16_t len)
+{
+    for (uint16_t i = 0; i < observers.size(); ++i)
+    {
+        observers[i]->OnNext(data, len);
     }  
 }
 

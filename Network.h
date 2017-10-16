@@ -72,7 +72,7 @@ public:
 
     void Service();
 
-    void DiscoverAsync(Callback callback);
+    void DiscoverAsync();
 
     void OnStatusChanged(Callback callback);
     
@@ -93,8 +93,8 @@ public:
     
     SerialDataSubject* GetSerialDataSubject();
        
-    void OnNext(const uint64_t source_addr, const std::vector<uint8_t>& data);
     void OnNext(const std::vector<uint8_t>& data);
+    void OnNext(const uint8_t* data, const uint16_t len);
     void OnComplete();
     void OnError(const int32_t error_code);
     
@@ -102,9 +102,11 @@ public:
 
 protected:
     
-    virtual void DiscoveryComplete();
+    virtual void DeviceDiscovered(RemoteDevice* device);
     
     virtual void StatusChanged(ModemStatus status);
+    
+    virtual void SerialDataReceived(const uint64_t source_addr, const std::vector<uint8_t>& data);
     
 private:
     

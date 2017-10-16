@@ -128,7 +128,6 @@ void Device::HandleTransactionComplete(Transaction* t, Device* d)
         Frame f = t->GetFrame();
         if (f.GetID() == static_cast<uint8_t>(ApiID::AT_COMMAND_RESPONSE))
         {
-
         }
     }
     

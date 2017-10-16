@@ -78,7 +78,7 @@ void Network::Service()
                 if (rx_frame.GetField(4, addr) &&
                     rx_frame.GetData(15, frame_data))
                 {
-                    subject.Next(addr, frame_data); // Notify observers
+                    SerialDataReceived(addr, frame_data); // Notify observers
                 }
             }
             else
@@ -112,6 +112,8 @@ void Network::Service()
                             dev.SetNetwork(this);
                             dev.SetAddress(addr);
                             remote_devices.push_back(dev);
+                            
+                            DeviceDiscovered(&remote_devices[remote_devices.size() - 1]);
                         }
                     }
                 }
@@ -137,10 +139,9 @@ uint64_t Network::GetTotalTransactions() const
 }
 
 
-void Network::DiscoverAsync(Network::Callback callback)
+void Network::DiscoverAsync()
 {
-    disc_comp_cb = callback;
-    
+    local_device.NetworkDiscover()->Pend();
 }
 
 
@@ -222,24 +223,24 @@ Transaction* Network::BeginTransaction(Device* device)
     t->Initialize(device);
     
     return t;
-}
+}   
 
-
-    
-SerialDataSubject* Network::GetSerialDataSubject()
+void Network::SerialDataReceived(const uint64_t source_addr, const std::vector<uint8_t>& data)
 {
-    return &subject;
-}
-    
-   
-void Network::OnNext(const uint64_t source_addr, const std::vector<uint8_t>& data)
-{
-    
+    for(uint16_t i = 0; i < subscribers.size(); ++i)
+    {
+        subscribers[i]->OnSerialDataReceived(source_addr, data);
+    }
 }
 
 void Network::OnNext(const std::vector<uint8_t>& data)
 {
-    for(uint16_t i = 0; i < data.size(); ++i)
+    OnNext(&data[0], data.size());
+}
+
+void Network::OnNext(const uint8_t* data, const uint16_t len)
+{
+    for(uint16_t i = 0; i < len; ++i)
     {
         rx_buff[rx_buff_tail_index] = data[i];
         
@@ -251,7 +252,7 @@ void Network::OnNext(const std::vector<uint8_t>& data)
         }
     }
 }
-
+    
 void Network::OnComplete()
 {
     
@@ -268,21 +269,22 @@ void Network::Subscribe(NetworkObserver* observer)
     subscribers.push_back(observer);
 }
 
-void Network::DiscoveryComplete()
+void Network::DeviceDiscovered(RemoteDevice* device)
 {
     for (uint16_t i = 0; i < subscribers.size(); ++i)
     {
-        subscribers[i]->OnDiscoveryComplete(this);
+        subscribers[i]->OnDeviceDiscovered(this, device);
     }
 }
 
 void Network::StatusChanged(Network::ModemStatus status)
 {
+    Network::ModemStatus prev = network_status;
     network_status = status;
     
     for (uint16_t i = 0; i < subscribers.size(); ++i)
     {
-        subscribers[i]->OnStatusChanged(this, status);
+        subscribers[i]->OnStatusChanged(this, prev, network_status);
     }
 }
 

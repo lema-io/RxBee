@@ -18,8 +18,8 @@ public:
     void Subscribe(SerialDataObserver* observer);
     void Unsubscribe(SerialDataObserver* observer);
     
-    void Next(const uint64_t source_addr, const std::vector<uint8_t>& data);
     void Next(const std::vector<uint8_t>& data);
+    void Next(const uint8_t* data, const uint16_t len);
     void Complete();
     void Error(const int32_t error_code);
 
