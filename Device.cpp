@@ -9,9 +9,10 @@ namespace RXBee
 {
 
 Device::Device()
-    : head(NULL), tail(NULL)
+    : head(NULL), tail(NULL), network(NULL),
+      trans_comp_cb(NULL)
 {
-
+    node_id = "";
 }
 
 Device::Device(const Device& d)
@@ -21,6 +22,7 @@ Device::Device(const Device& d)
     queue_commands = d.queue_commands;
     dev_addr = d.dev_addr;
     network = d.network;
+    node_id = d.node_id;
     trans_comp_cb = d.trans_comp_cb;
 }
 
@@ -36,6 +38,7 @@ Device& Device::operator=(const Device& d)
     queue_commands = d.queue_commands;
     dev_addr = d.dev_addr;
     network = d.network;
+    node_id = d.node_id;
     trans_comp_cb = d.trans_comp_cb;    
 }
     
@@ -47,6 +50,11 @@ void Device::SetNetwork(Network* n)
 uint64_t Device::GetAddress()
 {
     return dev_addr;
+}
+    
+const std::string& Device::GetNodeIdentifier() const
+{
+    return node_id;
 }
 
 void Device::SetAddress(uint64_t addr)
@@ -82,9 +90,12 @@ Transaction* Device::GetNextTransaction()
     
     return t;
 }
-    
-void Device::InitFrame(Frame& f)
+
+
+Transaction* Device::GetNextCmdTransaction()
 {
+    Transaction* t = GetNextTransaction();
+    
     ApiID frame_id = ApiID::AT_COMMAND;
 
     if (GetLocation() == Location::REMOTE)
@@ -97,22 +108,20 @@ void Device::InitFrame(Frame& f)
         frame_id = ApiID::AT_QUEUE_COMMAND;
     }
 
-    f.Initialize(frame_id, network->GetApiMode());
+    Frame* f = t->GetFrame();
+    f->Initialize(frame_id, network->GetApiMode());
     
     if (GetLocation() == Location::REMOTE)
     {
-        f.AddField(dev_addr);
-        f.AddField(0xFFFE);
-        f.AddField((uint8_t)0);
+        f->AddFields(dev_addr,
+                     static_cast<uint16_t>(0xFFFE),
+                     static_cast<uint8_t>(0));
     }
-}
-
-void Device::InitTransaction(Transaction* t, Frame& f)
-{
-    t->SetFrame(f);
+    
     t->OnCompleteDevice(HandleTransactionComplete);
+    
+    return t;
 }
-
 
 void Device::SetTransactionFrame(Transaction* t, const Frame& f) const
 {
@@ -125,8 +134,8 @@ void Device::HandleTransactionComplete(Transaction* t, Device* d)
     
     if (err == Transaction::Error::NONE)
     {
-        Frame f = t->GetFrame();
-        if (f.GetID() == static_cast<uint8_t>(ApiID::AT_COMMAND_RESPONSE))
+        Frame* f = t->GetFrame();
+        if (f->GetApiID() == ApiID::AT_COMMAND_RESPONSE)
         {
         }
     }
@@ -141,12 +150,21 @@ void Device::SetQueueCommands(bool value)
 {
     queue_commands = value;
 }
+
+Network* Device::GetNetwork()
+{
+    return network;
+}
+
+void Device::RecordNodeIdentifier(const std::string& identifier)
+{
+    node_id = identifier;
+}
     
 void Device::OnTransactionComplete(Device::TranscationCompleteCallback callback)
 {
     trans_comp_cb = callback;
 }
-
 
 
 } // namespace RXBee

@@ -60,9 +60,9 @@ void Transaction::Initialize(Device* destination)
     state = State::INITIALIZED;
 }
     
-const Frame& Transaction::GetFrame() const
+Frame* Transaction::GetFrame()
 {
-    return current_frame;
+    return &current_frame;
 }
     
 Transaction::Error Transaction::GetError() const
@@ -79,7 +79,7 @@ bool Transaction::TryComplete(const Frame& frame)
 {
     bool completed = false;
     
-    if (frame.GetID() == target_frame_id)
+    if (frame.GetFrameID() == target_frame_id)
     {
         current_frame = frame;
         
@@ -103,7 +103,6 @@ void Transaction::SetFrame(const Frame& frame)
 
 void Transaction::Sent(uint16_t frame_id)
 {
-    current_frame.SetID(frame_id);
     target_frame_id = frame_id;
     state = State::SENT;
     current_frame.Clear();
@@ -135,6 +134,7 @@ void Transaction::Chain(Transaction* t)
     
 void Transaction::Pend()
 {
+    current_frame.Checksum();
     state = State::PENDING;
 }
     

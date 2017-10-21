@@ -6,16 +6,20 @@
 #include "SerialDataSubject.h"
 #include "NetworkObserver.h"
 
+
 namespace RXBee
 {
 
+
 Network::Network()
-    : network_id(XBEE_NETWORK_ID_DEFAULT), network_status(ModemStatus::UNKNOWN),
+    : network_status(ModemStatus::UNKNOWN),
       rx_buff_head_index(0), rx_buff_tail_index(0),
       tx_buff_index(0), frame_count(0),
       frame_count_rollover(0)
 {
+    local_device.SetNetwork(this);
     local_device.OnTransactionComplete(DeviceTransactionComplete);
+    rx_frame.Initialize(local_device.GetApiMode());
 }
 
 
@@ -32,9 +36,14 @@ void Network::Service()
     {
         if (pending[i].GetState() == Transaction::State::PENDING)
         {
-            const Frame f = pending[i].GetFrame();
+            frame_count++;
+            
+            Frame* f = pending[i].GetFrame();
+            
+            f->SetFrameID(frame_count);
+            
             // Write frame to transmit buffer 
-            subject.Next(f.Serialize());
+            subject.Next(f->Serialize());
             
             // Transaction sent
             pending[i].Sent(frame_count);
@@ -65,8 +74,9 @@ void Network::Service()
     // Read from receive buffer until head index equals tail index
     while (rx_buff_head_index != rx_buff_tail_index)
     {
+        uint16_t tmp_head_idx = rx_buff_head_index;
         // Read up to maximum from receive buffer
-        if (rx_frame.Deserialize(rx_buff, rx_buff_head_index, buff_max))
+        if (rx_frame.Deserialize(rx_buff, buff_max, rx_buff_head_index))
         {
             // Complete frame received
             
@@ -79,6 +89,23 @@ void Network::Service()
                     rx_frame.GetData(15, frame_data))
                 {
                     SerialDataReceived(addr, frame_data); // Notify observers
+                }
+            }
+            else if (rx_frame.GetApiID() == ApiID::MODEM_STATUS)
+            {
+                // Received serial data
+                uint8_t status;
+                if (rx_frame.GetField(4, status))
+                {
+                    ModemStatus modem_status = ModemStatus::UNKNOWN;
+                    if ((status == static_cast<uint8_t>(ModemStatus::HW_RESET)) ||
+                        (status == static_cast<uint8_t>(ModemStatus::NETWORK_WENT_TO_SLEEP)) ||
+                        (status == static_cast<uint8_t>(ModemStatus::NETWORK_WOKE_UP)) ||
+                        (status == static_cast<uint8_t>(ModemStatus::WATCHDOG_TIMER_RESET)))
+                    {
+                        modem_status = static_cast<ModemStatus>(status);
+                    }
+                    StatusChanged(modem_status);
                 }
             }
             else
@@ -99,29 +126,44 @@ void Network::Service()
                     // Unsolicited
                     if (rx_frame.GetApiID() == ApiID::AT_COMMAND_RESPONSE)
                     {
-                        char cmd[2];
+                        char cmd[3];
                         uint16_t str_len;
-                        rx_frame.GetField(15, cmd, str_len, 2);
+                        rx_frame.GetField(5, cmd, str_len, 2);
+                        cmd[2] = '\0';
                         
                         if (strcmp(cmd, XBEE_CMD_ND) == 0)
                         {
                             uint64_t addr;
+                            char ident[20];
                             
-                            rx_frame.GetField(5, addr);
-                            RemoteDevice dev;
-                            dev.SetNetwork(this);
-                            dev.SetAddress(addr);
-                            remote_devices.push_back(dev);
-                            
-                            DeviceDiscovered(&remote_devices[remote_devices.size() - 1]);
+                            if (rx_frame.GetField(10, addr) &&
+                                rx_frame.GetField(18, ident, str_len, 20))
+                            {
+                                ident[str_len] = '\0';
+                                
+                                RemoteDevice dev(this, addr, ident);
+                                dev.OnTransactionComplete(DeviceTransactionComplete);
+                                remote_devices.push_back(dev);
+
+                                DeviceDiscovered(&remote_devices[remote_devices.size() - 1]);
+                            }
                         }
                     }
                 }
             }
             
             // reset the receive frame
-            rx_frame.Clear();
+            rx_frame.Initialize(local_device.GetApiMode());
             break;
+        }
+        else if (tmp_head_idx == rx_buff_head_index)
+        {
+            // Did not deserialize any more data, wait for more
+            break;
+        }
+        else
+        {
+            // Nothing
         }
         
         // Reset head index when it reaches the end of the buffer
@@ -136,6 +178,11 @@ void Network::Service()
 uint64_t Network::GetTotalTransactions() const
 {
     return frame_count_rollover * RXBEE_MAX_FRAME_COUNT + frame_count;
+}
+    
+SerialDataSubject* Network::GetSerialDataSubject()
+{
+    return &subject;
 }
 
 
@@ -288,9 +335,12 @@ void Network::StatusChanged(Network::ModemStatus status)
     }
 }
 
-void Network::DeviceTransactionComplete(Device* device, Transaction* t)
+void Network::DeviceTransactionComplete(Device* d, Transaction* t)
 {
-    
+    for (uint16_t i = 0; i < d->network->subscribers.size(); ++i)
+    {
+        d->network->subscribers[i]->OnDeviceTransactionComplete(d->network, d, t);
+    }
 }
 
 } // namespace XBee

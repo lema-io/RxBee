@@ -48,7 +48,7 @@
 
 #define XBEE_CMD_AG "AG"
 #define XBEE_CMD_DN "DN"
-#define XBEE_CMD_ND "ND"
+#define XBEE_CMD_ND "ND"    // Network Discover
 #define XBEE_CMD_FN "FN"
 
 #define XBEE_CMD_EE "EE"

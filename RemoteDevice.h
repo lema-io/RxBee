@@ -13,6 +13,7 @@ class RemoteDevice : public SpecificDevice<RemoteDevice>
 {
 public:
     RemoteDevice();
+    RemoteDevice(Network* n, uint64_t address, const char* const identifier);
     virtual ~RemoteDevice();
     
     virtual Device::Location GetLocation() const;

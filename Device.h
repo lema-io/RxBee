@@ -3,6 +3,7 @@
 #define RXBEE_DEVICE_H
 
 #include <stdint.h>
+#include <string>
 
 #include "Frame.h"
 
@@ -76,6 +77,8 @@ public:
     Transaction* Pend();
 
     void ReadVersionInfo();
+    
+    const std::string& GetNodeIdentifier() const;
 
     VersionInformation GetVersionInfo();
     
@@ -89,33 +92,19 @@ protected:
     
     typedef void (*TranscationCompleteCallback)(Device* d, Transaction* t);
     
-    void InitFrame(Frame& f);
-    
-    void InitTransaction(Transaction* t, Frame& f);
-    
-    template<typename ...Ts> 
-    Device* CreateATCmdTransaction(const char* const at_cmd, Ts... fields)
-    {
-        Transaction* t = GetNextTransaction();  
-        Frame f;
-       
-        InitFrame(f);
-        
-        f.AddField(at_cmd);
-        f.AddFields(fields...);
-
-        InitTransaction(t, f);
-
-        return this;
-    }
-    
     Transaction* GetNextTransaction();
+    
+    Transaction* GetNextCmdTransaction();
     
     void SetTransactionFrame(Transaction* t, const Frame& f) const;
     
     void SetQueueCommands(bool value);
     
+    void RecordNodeIdentifier(const std::string& identifier);
+    
     void OnTransactionComplete(TranscationCompleteCallback callback);
+    
+    Network* GetNetwork();
 
 private:
     
@@ -136,6 +125,7 @@ private:
 
     Configuration config;
     
+    std::string node_id;
     
     Transaction* head;
     Transaction* tail;

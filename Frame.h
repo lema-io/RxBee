@@ -40,32 +40,35 @@ public:
 
     void Initialize(const ApiID id, const ApiMode api_mode);
     
+    void Initialize(const ApiMode api_mode);
+    
     template<typename T, typename ...Ts> 
-    void AddFields(T field, Ts... fields)
+    Frame* AddFields(T field, Ts... fields)
     {
         AddField(field);
-        AddFields(fields...);
+        return AddFields(fields...);
     }
-    void AddFields() { }
+    Frame* AddFields() { return this; }
 
     template<typename T>
-    void AddField(const T field)
+    Frame* AddField(const T field)
     {
-        for (uint16_t i = 0; i < sizeof(T); ++i)
+        for (int16_t i = sizeof(T) - 1; i >= 0; --i)
         {
             data.push_back((field >> (8 * i)) & 0xFF);
         }
 
         AddSize(sizeof(T));
+        return this;
     }
     
-    void AddField(const char* const field);
+    Frame* AddField(const char* const field);
 
-    void AddField(const std::string& field);
+    Frame* AddField(const std::string& field);
 
-    void AddData(const uint8_t* bytes, const uint16_t byte_cnt);
+    Frame* AddData(const uint8_t* bytes, const uint16_t byte_cnt);
 
-    void AddData(const std::vector<uint8_t>& bytes);
+    Frame* AddData(const std::vector<uint8_t>& bytes);
     
     template<typename T, typename ...Ts>
     bool GetFields(uint16_t index, T& field, Ts&... fields) const
@@ -85,11 +88,13 @@ public:
     bool GetField(const uint16_t index, T& field) const
     {
         bool success = false;
-        if (data.size() > XBEE_FRAME_API_CONTENT_INDEX + index + sizeof(T))
+        if (data.size() > index + sizeof(T))
         {
+            field = 0;
             for (uint16_t i = 0; i < sizeof(T); ++i)
             {
-                field = (data[XBEE_FRAME_API_CONTENT_INDEX + index + i] << (8 * i));
+                field = field << 8;
+                field += (data[index + i]);
             }
             success = true;
         }
@@ -111,11 +116,13 @@ public:
 
     ApiID GetApiID() const;
     
-    uint16_t GetID() const;
+    uint16_t GetFrameID() const;
     
-    void SetID(uint16_t id);
+    bool HasFrameID() const;
     
-    uint8_t Checksum();
+    void SetFrameID(uint16_t id);
+    
+    uint8_t Checksum() const;
     
     bool Validate() const;
     
@@ -129,6 +136,7 @@ private:
     void AddSize(uint16_t size);
     std::vector<uint8_t> data;
     ApiMode mode;
+    bool has_fid;
 };
 
 } // namespace XBee

@@ -67,8 +67,6 @@ public:
 
     Network();
     virtual ~Network();
-    
-    void Initialize(uint16_t id);
 
     void Service();
 
@@ -112,8 +110,6 @@ private:
     
     static void DeviceTransactionComplete(Device* device, Transaction* transaction);
     
-    uint16_t network_id;
-
     ModemStatus network_status;
 
     LocalDevice local_device;

@@ -15,26 +15,20 @@ template <class T>
 class SpecificDevice : public Device
 {
 public:
-T* SetRoutingMode(uint8_t mode) { return dynamic_cast<T*>(CreateATCmdTransaction(XBEE_CMD_CE, mode)); }
+T* SetRoutingMode(uint8_t mode) { GetNextCmdTransaction()->GetFrame()->AddFields(XBEE_CMD_CE, mode); return dynamic_cast<T*>(this); }
 
-T* ReadRoutingMode() { return dynamic_cast<T*>(CreateATCmdTransaction(XBEE_CMD_CE)); }
+T* ReadRoutingMode() { GetNextCmdTransaction()->GetFrame()->AddField(XBEE_CMD_CE); return dynamic_cast<T*>(this); }
 
 
-T* SetIdentifier(const std::string& identifier) { return dynamic_cast<T*>(CreateATCmdTransaction(XBEE_CMD_NI, identifier)); } 
+T* SetIdentifier(const std::string& identifier) { GetNextCmdTransaction()->GetFrame()->AddFields(XBEE_CMD_NI, identifier); return dynamic_cast<T*>(this); } 
    
-T* ReadIdentifier() { return dynamic_cast<T*>(CreateATCmdTransaction(XBEE_CMD_NI)); } 
+T* ReadIdentifier() { GetNextCmdTransaction()->GetFrame()->AddField(XBEE_CMD_NI); return dynamic_cast<T*>(this); } 
     
 const std::string& GetIdentifier() { return ident; } 
 
-T* BeginCommandQueue()
-{
-    SetQueueCommands(true);
-}
+T* BeginCommandQueue() { SetQueueCommands(true); }
 
-T* EndCommandQueue()
-{
-    return dynamic_cast<T*>(CreateATCmdTransaction(XBEE_CMD_AC));
-}
+T* EndCommandQueue() { GetNextCmdTransaction()->GetFrame()->AddField(XBEE_CMD_AC); return dynamic_cast<T*>(this); }
     
 private:
     std::string ident;

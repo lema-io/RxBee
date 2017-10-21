@@ -48,7 +48,7 @@ public:
     
     void OnComplete(CompleteHandler handler);
     
-    const Frame& GetFrame() const;
+    Frame* GetFrame();
     
     Error GetError() const;
     
