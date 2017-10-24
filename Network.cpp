@@ -29,16 +29,16 @@ Network::~Network()
 }
 
 
-void Network::Service()
+void Network::Service(uint32_t milliseconds)
 {
     // Send pending transactions
     for (uint16_t i = 0; i < pending.size(); ++i)
     {
-        if (pending[i].GetState() == Transaction::State::PENDING)
+        if (pending[i]->GetState() == Transaction::State::PENDING)
         {
             frame_count++;
             
-            Frame* f = pending[i].GetFrame();
+            Frame* f = pending[i]->GetFrame();
             
             f->SetFrameID(frame_count);
             
@@ -46,7 +46,7 @@ void Network::Service()
             subject.Next(f->Serialize());
             
             // Transaction sent
-            pending[i].Sent(frame_count);
+            pending[i]->Sent(frame_count);
             
             // Increment frame count
             if (frame_count == RXBEE_MAX_FRAME_COUNT)
@@ -114,8 +114,8 @@ void Network::Service()
                 for (;p < pending.size(); ++p)
                 {
                     // Complete the corresponding transaction
-                    if ((pending[p].GetState() == Transaction::State::SENT) &&
-                        pending[p].TryComplete(rx_frame))
+                    if ((pending[p]->GetState() == Transaction::State::SENT) &&
+                        pending[p]->TryComplete(rx_frame))
                     {   
                         break;
                     }
@@ -131,7 +131,7 @@ void Network::Service()
                         rx_frame.GetField(5, cmd, str_len, 2);
                         cmd[2] = '\0';
                         
-                        if (strcmp(cmd, XBEE_CMD_ND) == 0)
+                        if (strcmp(cmd, XBEE_CMD_ND) == 0)          // TODO: Bug?
                         {
                             uint64_t addr;
                             char ident[20];
@@ -251,20 +251,20 @@ Transaction* Network::BeginTransaction(Device* device)
     Transaction* t = NULL;
     for (;i < pending.size(); ++i)
     {
-        if (pending[i].GetState() == Transaction::State::FREE)
+        if (pending[i]->GetState() == Transaction::State::FREE)
         {
-            t = &pending[i];
+            delete pending[i];
+            t = new Transaction();
+            pending[i] = t;
             break;
         }
     }
     
     if (t == NULL)
     {
-        Transaction new_trans;
+        t = new Transaction();
         
-        pending.push_back(new_trans);
-        
-        t = &pending[pending.size() - 1];
+        pending.push_back(t);
     }
     
     t->Initialize(device);
@@ -287,6 +287,7 @@ void Network::OnNext(const std::vector<uint8_t>& data)
 
 void Network::OnNext(const uint8_t* data, const uint16_t len)
 {
+    // TODO: Error on overrun
     for(uint16_t i = 0; i < len; ++i)
     {
         rx_buff[rx_buff_tail_index] = data[i];

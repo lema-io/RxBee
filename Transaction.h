@@ -4,6 +4,7 @@
 #define RXBEE_PENDING_TRANSACTION_H
 
 #include <stdint.h>
+#include <cstdint>
 #include "Frame.h"
 
 namespace RXBee
@@ -43,10 +44,13 @@ public:
     Transaction& operator=(Transaction& t);
     
     typedef void (*CompleteHandler)(Transaction* transaction, 
-                                    Device* dest_device);
+                                    Device* dest_device,
+                                    void* context);
+    
+    Device* GetDestinationDevice();
    
     
-    void OnComplete(CompleteHandler handler);
+    void OnComplete(CompleteHandler handler, void* context);
     
     Frame* GetFrame();
     
@@ -82,18 +86,24 @@ protected:
     
     void Pend();
     
-    void OnCompleteDevice(CompleteHandler handler);
+    
+    
+    typedef void (*CompleteDeviceHandler)(Transaction* transaction, 
+                                          Device* dest_device);
+    
+    void OnCompleteDevice(CompleteDeviceHandler handler);
     
 private:
-    static void HandleChainComplete(Transaction* transaction, Device* dest_device);
+    static void HandleChainComplete(Transaction* transaction, Device* dest_device, void* context);
     Frame current_frame;
     uint16_t target_frame_id;
     CompleteHandler on_complete_handler;
-    CompleteHandler on_complete_device_handler;
+    CompleteDeviceHandler on_complete_device_handler;
     Device* dest;
     Error err;
     State state;
     Transaction* chain;
+    void* on_complete_context;
 };
     
 } // namespace RXBee

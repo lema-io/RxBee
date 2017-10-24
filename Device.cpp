@@ -76,7 +76,9 @@ Transaction* Device::GetNextTransaction()
 {
     Transaction* t = network->BeginTransaction(this);
     
-    if ((tail != NULL) && (tail->GetState() == Transaction::State::INITIALIZED))
+    if ((tail != NULL) && 
+        (tail->GetState() > Transaction::State::FREE) &&
+        (tail->GetState() < Transaction::State::SENT))
     {
         tail->Chain(t);       
     }
@@ -138,6 +140,19 @@ void Device::HandleTransactionComplete(Transaction* t, Device* d)
         if (f->GetApiID() == ApiID::AT_COMMAND_RESPONSE)
         {
         }
+    }
+    
+    if (t->chain != NULL)
+    {
+        d->head = t->chain;
+    }
+    else if (d->tail != NULL)
+    {
+        d->head = d->tail;
+    }
+    else
+    {
+        d->head = NULL;
     }
     
     if (d->trans_comp_cb != NULL)

@@ -23,11 +23,6 @@ Device::Location LocalDevice::GetLocation() const
     return Device::Location::LOCAL;
 }
 
-LocalDevice* LocalDevice::SetPreambleID(uint8_t id) { GetNextCmdTransaction()->GetFrame()->AddFields(XBEE_CMD_HP, id); return this; }
-LocalDevice* LocalDevice::ReadPreambleID() {  GetNextCmdTransaction()->GetFrame()->AddFields(XBEE_CMD_HP); return this; } 
-
-LocalDevice* LocalDevice::SetNetworkID(uint16_t id) { GetNextCmdTransaction()->GetFrame()->AddFields(XBEE_CMD_ID, id); return this; }
-LocalDevice* LocalDevice::ReadNetworkID() { GetNextCmdTransaction()->GetFrame()->AddField(XBEE_CMD_ID); return this; }
 
 LocalDevice* LocalDevice::NetworkDiscover() { GetNextCmdTransaction()->GetFrame()->AddField(XBEE_CMD_ND); return this; }
 

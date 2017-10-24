@@ -15,12 +15,7 @@ public:
     ~LocalDevice();
     
     virtual Device::Location GetLocation() const;
-    
-    LocalDevice* SetPreambleID(uint8_t id);
-    LocalDevice* ReadPreambleID();
-    LocalDevice* SetNetworkID(uint16_t id);
-    LocalDevice* ReadNetworkID();
-    
+        
     LocalDevice* NetworkDiscover();
     
     

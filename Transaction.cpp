@@ -6,9 +6,10 @@
 namespace RXBee
 {
 
-void Transaction::OnComplete(Transaction::CompleteHandler handler)
+void Transaction::OnComplete(Transaction::CompleteHandler handler, void* context)
 {
     on_complete_handler = handler;
+    on_complete_context = context;
     
     if (state == State::COMPLETE)
     {
@@ -17,8 +18,10 @@ void Transaction::OnComplete(Transaction::CompleteHandler handler)
 }
 
 Transaction::Transaction()
-    : target_frame_id(0), on_complete_handler(NULL), dest(NULL), 
-        err(Error::NONE), chain(NULL), state(State::FREE)
+    : target_frame_id(0), on_complete_handler(NULL), 
+        on_complete_device_handler(NULL), dest(NULL), 
+        err(Error::NONE), chain(NULL), state(State::FREE),
+        on_complete_context(NULL)
 {
     
 }
@@ -27,10 +30,12 @@ Transaction::Transaction(const Transaction& t)
     current_frame = t.current_frame;
     target_frame_id = t.target_frame_id;
     on_complete_handler = t.on_complete_handler;
+    on_complete_device_handler = t.on_complete_device_handler;
     dest = t.dest;
     err = t.err;
     chain = t.chain;
     state = t.state;
+    on_complete_context = t.on_complete_context;
 }
 
 Transaction::~Transaction()
@@ -43,16 +48,19 @@ Transaction& Transaction::operator=(Transaction& t)
     current_frame = t.current_frame;
     target_frame_id = t.target_frame_id;
     on_complete_handler = t.on_complete_handler;
+    on_complete_device_handler = t.on_complete_device_handler;
     dest = t.dest;
     err = t.err;
     chain = t.chain;
     state = t.state;
+    on_complete_context = t.on_complete_context;
 }
 
 void Transaction::Initialize(Device* destination)
 {
     target_frame_id = 0;
     on_complete_handler = NULL;
+    on_complete_context = NULL;
     dest = destination; 
     err = Error::NONE;
     chain = NULL;
@@ -119,7 +127,7 @@ void Transaction::Complete()
     
     if (on_complete_handler != NULL)
     {
-        on_complete_handler(this, dest);
+        on_complete_handler(this, dest, on_complete_context);
     }
     
     state = State::FREE;
@@ -129,22 +137,22 @@ void Transaction::Complete()
 void Transaction::Chain(Transaction* t)
 {
     chain = t;
-    OnComplete(HandleChainComplete);
+    OnComplete(HandleChainComplete, on_complete_context);
 }
     
 void Transaction::Pend()
 {
-    current_frame.Checksum();
     state = State::PENDING;
 }
     
-void Transaction::OnCompleteDevice(Transaction::CompleteHandler handler)
+void Transaction::OnCompleteDevice(Transaction::CompleteDeviceHandler handler)
 {
     on_complete_device_handler = handler;
 }
 
 void Transaction::HandleChainComplete(Transaction* transaction,
-                                      Device* dest_device)
+                                      Device* dest_device,
+                                      void* context)
 {
     transaction->chain->SetError(transaction->GetError());
     transaction->chain->Pend();

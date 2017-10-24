@@ -42,7 +42,7 @@ public:
     
     void Initialize(const ApiMode api_mode);
     
-    template<typename T, typename ...Ts> 
+    template<typename T, typename ...Ts>    // Variadic template
     Frame* AddFields(T field, Ts... fields)
     {
         AddField(field);

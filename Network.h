@@ -68,7 +68,7 @@ public:
     Network();
     virtual ~Network();
 
-    void Service();
+    void Service(uint32_t milliseconds);
 
     void DiscoverAsync();
 
@@ -120,7 +120,7 @@ private:
     uint8_t frame_count;
     uint32_t frame_count_rollover;
     
-    std::vector<Transaction> pending;
+    std::vector<Transaction*> pending;
     
     std::vector<NetworkObserver*> subscribers;
     
