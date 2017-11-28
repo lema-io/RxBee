@@ -6,12 +6,12 @@
 #include <stdint.h>
 #include <cstdint>
 #include "Frame.h"
+#include "Types.h"
 
 namespace RXBee
 {
-    
-class Device;
-class Network;
+
+class XBeeNetwork;
 
 class Transaction
 {
@@ -39,16 +39,12 @@ public:
     Transaction(const Transaction& t);
     ~Transaction();
     
-    void Initialize(Device* destination);
+    void Initialize(Address destination, XBeeNetwork* network);
     
     Transaction& operator=(Transaction& t);
     
-    typedef void (*CompleteHandler)(Transaction* transaction, 
-                                    Device* dest_device,
-                                    void* context);
-    
-    Device* GetDestinationDevice();
-   
+    typedef void (*CompleteHandler)(Transaction* transaction,
+                                    void* context);   
     
     void OnComplete(CompleteHandler handler, void* context);
     
@@ -56,9 +52,40 @@ public:
     
     Error GetError() const;
     
+    Address GetDestination() const;
+    
+    Transaction* WritePreambleID(uint8_t id);
+    Transaction* ReadPreambleID();
+
+    Transaction* WriteNetworkID(uint16_t id);
+    Transaction* ReadNetworkID();
+
+    Transaction* WriteRoutingMode(uint8_t mode);
+    Transaction* ReadRoutingMode();
+
+    Transaction* WriteIdentifier(const std::string& identifier);
+    Transaction* ReadIdentifier();
+    
+    Transaction* ReadAddressUpper();
+    Transaction* ReadAddressLower();
+    
+    Transaction* NetworkDiscover();
+    
+    Transaction* WriteApiMode(ApiMode mode);
+    Transaction* ReadApiMode();
+
+    Transaction* BeginCommandQueue();
+
+    Transaction* EndCommandQueue();
+    
+    
+    Transaction* Transmit(const uint8_t* buffer, uint16_t n);
+    
+    Transaction* Pend();
+    
+    
 protected:
-    friend class Network;
-    friend class Device;
+    friend class XBeeNetwork;
     
     enum class State
     {
@@ -84,26 +111,23 @@ protected:
     
     void Chain(Transaction* t);
     
-    void Pend();
+    XBeeNetwork* net;
     
-    
-    
-    typedef void (*CompleteDeviceHandler)(Transaction* transaction, 
-                                          Device* dest_device);
-    
-    void OnCompleteDevice(CompleteDeviceHandler handler);
+    Transaction* GetNextTransaction();    
+    Transaction* GetNextCmdTransaction();
     
 private:
-    static void HandleChainComplete(Transaction* transaction, Device* dest_device, void* context);
+    static void HandleChainComplete(Transaction* transaction, void* context);
     Frame current_frame;
     uint16_t target_frame_id;
     CompleteHandler on_complete_handler;
-    CompleteDeviceHandler on_complete_device_handler;
-    Device* dest;
+    Address dest_addr;
     Error err;
     State state;
-    Transaction* chain;
     void* on_complete_context;
+    bool queue_cmds;
+    Transaction* prev;
+    Transaction* next;
 };
     
 } // namespace RXBee

@@ -7,41 +7,25 @@
 #include <string>
 
 #include "Frame.h"
-#include "RemoteDevice.h"
-#include "LocalDevice.h"
 #include "Command.h"
 #include "SerialDataObserver.h"
 #include "SerialDataSubject.h"
 #include "Transaction.h"
 #include "Types.h"
 
-#define XBEE_NETWORK_ID_DEFAULT (0x7FFF)
-#define XBEE_NETWORK_ID_OEM     (0xFFFF)
-
-#define RXBEE_RX_BUFFER_SIZE   (512)
-#define RXBEE_TX_BUFFER_SIZE   (512)
-
-#define RXBEE_MAX_FRAME_COUNT  (0xFF)
 
 
 namespace RXBee
 {
-    
+
 class NetworkObserver;
 
-class Network : public SerialDataObserver
+class XBeeNetwork : public SerialDataObserver
 {
 public:
-    typedef void (*Callback)(Network* source);
+    typedef void (*Callback)(XBeeNetwork* source);
 
-    enum class ModemStatus
-    {
-        HW_RESET                = 0x00,
-        WATCHDOG_TIMER_RESET    = 0x01,
-        NETWORK_WOKE_UP         = 0x0B,
-        NETWORK_WENT_TO_SLEEP   = 0x0C,
-        UNKNOWN                 = 0xFF
-    };
+    
     
     enum class DeliveryStatus
     {
@@ -65,27 +49,27 @@ public:
         TX_FAILURE = 0x04
     };
 
-    Network();
-    virtual ~Network();
+    XBeeNetwork();
+    virtual ~XBeeNetwork();
 
     void Service(uint32_t milliseconds);
 
-    void DiscoverAsync();
+    Transaction* DiscoverAsync();
 
     void OnStatusChanged(Callback callback);
     
     ModemStatus GetStatus();
-
-    bool FindRemoteDevice(const std::string& identifier, RemoteDevice* device); 
-    bool FindRemoteDevice(const uint64_t address, RemoteDevice* device);
     
-    
-    LocalDevice* GetLocalDevice();
+    uint16_t GetNetworkID() const;
+    void SetNetworkID(const uint16_t id);
+    uint8_t GetPreambleID() const;
+    void SetPreambleID(const uint8_t id);    
     
     ApiMode GetApiMode();
     
-    Transaction* BeginTransaction(Device* device);
+    Transaction* BeginTransaction(Address addr);
     Transaction* BeginTransaction();
+    Transaction* BeginBroadcastTransaction();
     
     uint64_t GetTotalTransactions() const;
     
@@ -100,7 +84,7 @@ public:
 
 protected:
     
-    virtual void DeviceDiscovered(RemoteDevice* device);
+    virtual void DeviceDiscovered(Address address, const std::string& node_id);
     
     virtual void StatusChanged(ModemStatus status);
     
@@ -108,12 +92,9 @@ protected:
     
 private:
     
-    static void DeviceTransactionComplete(Device* device, Transaction* transaction);
+    static void TransactionComplete(Transaction* transaction);
     
     ModemStatus network_status;
-
-    LocalDevice local_device;
-    std::vector<RemoteDevice> remote_devices;
     
     Frame rx_frame;
     
@@ -135,6 +116,9 @@ private:
     
     Callback disc_comp_cb;
     Callback status_changed_cb;
+    
+    Address local_addr;
+    ApiMode api_mode;
 };
 
 } // namespace XBee

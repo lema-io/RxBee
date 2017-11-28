@@ -4,6 +4,21 @@
 
 namespace RXBee
 {
+    
+#define XBEE_NETWORK_ID_DEFAULT (0x7FFF)
+#define XBEE_NETWORK_ID_OEM     (0xFFFF)
+#define XBEE_PREAMBLE_ID_DEFAULT (0x00)
+
+#define XBEE_BROADCAST_ADDRESS  (0x000000000000FFFF)
+#define RXBEE_LOCAL_ADDRESS     (0x0000000000000000)
+
+#define RXBEE_RX_BUFFER_SIZE   (512)
+#define RXBEE_TX_BUFFER_SIZE   (512)
+
+#define RXBEE_MAX_FRAME_COUNT  (0xFF)
+    
+    
+typedef uint64_t Address;
    
 enum class ApiID : uint8_t 
 {
@@ -28,11 +43,30 @@ enum class ApiID : uint8_t
     REMOTE_AT_COMMAND_RESPONSE = 0x97
 };
 
-enum class ApiMode
+enum class ApiMode : uint8_t
 {
     TRANSPARENT = 0x00,
     UNESCAPED = 0x01,
     ESCAPED = 0x02
+};
+
+enum class TxPowerLevel : uint8_t
+{
+    SEVEN_DBM = 0,          // +7dBm (5mW)
+    FIFTEEN_DBM = 1,        // +15dBm (32mW)
+    EIGHTEEN_DBM = 2,       // +18dBm (63mW)
+    TWENTY_ONE_DBM = 3,     // +21dBm (125mW)
+    TWENTY_FOUR_DBM = 4,     // +24dBm (250mW)
+    INVALID = 0xFF
+};
+
+enum class ModemStatus
+{
+    HW_RESET                = 0x00,
+    WATCHDOG_TIMER_RESET    = 0x01,
+    NETWORK_WOKE_UP         = 0x0B,
+    NETWORK_WENT_TO_SLEEP   = 0x0C,
+    UNKNOWN                 = 0xFF
 };
 
 } // namespace RXBee

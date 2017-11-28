@@ -114,7 +114,7 @@ Frame* Frame::AddField(const std::string& field)
     return AddField(field.c_str());
 }
 
-bool Frame::GetFields() const
+bool Frame::GetFields(uint16_t index) const
 {
     return true;
 }

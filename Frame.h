@@ -82,7 +82,7 @@ public:
         return success;
     }
     
-    bool GetFields() const;    
+    bool GetFields(uint16_t index) const;    
     
     template<typename T>
     bool GetField(const uint16_t index, T& field) const

@@ -5,31 +5,30 @@
 #include "Transaction.h"
 #include "SerialDataSubject.h"
 #include "NetworkObserver.h"
+#include "SpecificResponses.h"
 
 
 namespace RXBee
 {
 
 
-Network::Network()
+XBeeNetwork::XBeeNetwork()
     : network_status(ModemStatus::UNKNOWN),
       rx_buff_head_index(0), rx_buff_tail_index(0),
       tx_buff_index(0), frame_count(0),
-      frame_count_rollover(0)
+      frame_count_rollover(0), api_mode(ApiMode::ESCAPED)
 {
-    local_device.SetNetwork(this);
-    local_device.OnTransactionComplete(DeviceTransactionComplete);
-    rx_frame.Initialize(local_device.GetApiMode());
+    rx_frame.Initialize(api_mode);
 }
 
 
-Network::~Network()
+XBeeNetwork::~XBeeNetwork()
 {
 
 }
 
 
-void Network::Service(uint32_t milliseconds)
+void XBeeNetwork::Service(uint32_t milliseconds)
 {
     // Send pending transactions
     for (uint16_t i = 0; i < pending.size(); ++i)
@@ -79,73 +78,48 @@ void Network::Service(uint32_t milliseconds)
         if (rx_frame.Deserialize(rx_buff, buff_max, rx_buff_head_index))
         {
             // Complete frame received
-            
-            if (rx_frame.GetApiID() == ApiID::RECEIVE_PACKET)
-            {
-                // Received serial data
-                std::vector<uint8_t> frame_data;
-                uint64_t addr;
-                if (rx_frame.GetField(4, addr) &&
-                    rx_frame.GetData(15, frame_data))
+         
+            Response::ApiFrame api_frame (&rx_frame);
+            if (api_frame.extracted == true)
+            {  
+                if (api_frame.api_id == ApiID::RECEIVE_PACKET)
                 {
-                    SerialDataReceived(addr, frame_data); // Notify observers
+                    // Received serial data
+                    std::vector<uint8_t> frame_data;
+                    Response::ReceivePacket packet(api_frame, frame_data);
+                    SerialDataReceived(packet.sender_addr, frame_data); // Notify observers
                 }
-            }
-            else if (rx_frame.GetApiID() == ApiID::MODEM_STATUS)
-            {
-                // Received serial data
-                uint8_t status;
-                if (rx_frame.GetField(4, status))
+                else if (api_frame.api_id == ApiID::MODEM_STATUS)
                 {
-                    ModemStatus modem_status = ModemStatus::UNKNOWN;
-                    if ((status == static_cast<uint8_t>(ModemStatus::HW_RESET)) ||
-                        (status == static_cast<uint8_t>(ModemStatus::NETWORK_WENT_TO_SLEEP)) ||
-                        (status == static_cast<uint8_t>(ModemStatus::NETWORK_WOKE_UP)) ||
-                        (status == static_cast<uint8_t>(ModemStatus::WATCHDOG_TIMER_RESET)))
+                    Response::ModemStatusUpdate modem_status(api_frame);
+                    StatusChanged(modem_status.status);
+                }
+                else
+                {
+                    uint16_t p = 0; 
+                    for (;p < pending.size(); ++p)
                     {
-                        modem_status = static_cast<ModemStatus>(status);
+                        // Complete the corresponding transaction
+                        if ((pending[p]->GetState() == Transaction::State::SENT) &&
+                            pending[p]->TryComplete(rx_frame))
+                        {   
+                            break;
+                        }
                     }
-                    StatusChanged(modem_status);
-                }
-            }
-            else
-            {
-                uint16_t p = 0; 
-                for (;p < pending.size(); ++p)
-                {
-                    // Complete the corresponding transaction
-                    if ((pending[p]->GetState() == Transaction::State::SENT) &&
-                        pending[p]->TryComplete(rx_frame))
-                    {   
-                        break;
-                    }
-                }
 
-                if (p >= pending.size())
-                {
-                    // Unsolicited
-                    if (rx_frame.GetApiID() == ApiID::AT_COMMAND_RESPONSE)
+                    // Handle any AT responses
+                    if ((api_frame.api_id == ApiID::AT_COMMAND_RESPONSE) ||
+                        (api_frame.api_id == ApiID::REMOTE_AT_COMMAND_RESPONSE))
                     {
-                        char cmd[3];
-                        uint16_t str_len;
-                        rx_frame.GetField(5, cmd, str_len, 2);
-                        cmd[2] = '\0';
-                        
-                        if (strcmp(cmd, XBEE_CMD_ND) == 0)          // TODO: Bug?
+                        Response::ATCommand::Response at_rsp(api_frame);
+                        if (at_rsp.command == XBeeATCommand::ND)
                         {
-                            uint64_t addr;
-                            char ident[20];
-                            
-                            if (rx_frame.GetField(10, addr) &&
-                                rx_frame.GetField(18, ident, str_len, 20))
-                            {
-                                ident[str_len] = '\0';
-                                
-                                RemoteDevice dev(this, addr, ident);
-                                dev.OnTransactionComplete(DeviceTransactionComplete);
-                                remote_devices.push_back(dev);
+                            Response::ATCommand::ND_Rsp rsp = at_rsp.ND();
 
-                                DeviceDiscovered(&remote_devices[remote_devices.size() - 1]);
+                            if (rsp.address != local_addr)
+                            {
+                                std::string id(rsp.node_identifier);
+                                DeviceDiscovered(rsp.address, id);
                             }
                         }
                     }
@@ -153,7 +127,7 @@ void Network::Service(uint32_t milliseconds)
             }
             
             // reset the receive frame
-            rx_frame.Initialize(local_device.GetApiMode());
+            rx_frame.Initialize(api_mode);
             break;
         }
         else if (tmp_head_idx == rx_buff_head_index)
@@ -175,77 +149,39 @@ void Network::Service(uint32_t milliseconds)
     }
 }
 
-uint64_t Network::GetTotalTransactions() const
+uint64_t XBeeNetwork::GetTotalTransactions() const
 {
     return frame_count_rollover * RXBEE_MAX_FRAME_COUNT + frame_count;
 }
     
-SerialDataSubject* Network::GetSerialDataSubject()
+SerialDataSubject* XBeeNetwork::GetSerialDataSubject()
 {
     return &subject;
 }
 
 
-void Network::DiscoverAsync()
+Transaction* XBeeNetwork::DiscoverAsync()
 {
-    local_device.NetworkDiscover()->Pend();
+    BeginTransaction()->ReadAddressUpper()->ReadAddressLower()->NetworkDiscover()->Pend();
 }
 
 
-void Network::OnStatusChanged(Network::Callback callback)
+void XBeeNetwork::OnStatusChanged(XBeeNetwork::Callback callback)
 {
     status_changed_cb = callback;
 }
 
-Network::ModemStatus Network::GetStatus()
+ModemStatus XBeeNetwork::GetStatus()
 {
     return network_status;
 }
 
-bool Network::FindRemoteDevice(const std::string& identifier, RemoteDevice* device)
+ApiMode XBeeNetwork::GetApiMode()
 {
-    bool found = false;
-    for (uint16_t i = 0; i < remote_devices.size(); ++i)
-    {
-        if (remote_devices[i].GetIdentifier() == identifier)
-        {
-            device = &remote_devices[i];
-            found = true;
-            break;
-        }
-    }
-
-    return found;
+    return api_mode;
 }
 
-bool Network::FindRemoteDevice(const uint64_t address, RemoteDevice* device)
-{
-    bool found = false;
-    for (uint16_t i = 0; i < remote_devices.size(); ++i)
-    {
-        if (remote_devices[i].GetAddress() == address)
-        {
-            device = &remote_devices[i];
-            found = true;
-            break;
-        }
-    }
-    
-    return found;
-    
-}
-
-LocalDevice* Network::GetLocalDevice()
-{
-    return &local_device;
-}
-
-ApiMode Network::GetApiMode()
-{
-    return local_device.GetApiMode();
-}
-
-Transaction* Network::BeginTransaction(Device* device)
+Transaction* XBeeNetwork::BeginTransaction(Address addr)
 {
     uint16_t i = 0; 
     Transaction* t = NULL;
@@ -267,12 +203,22 @@ Transaction* Network::BeginTransaction(Device* device)
         pending.push_back(t);
     }
     
-    t->Initialize(device);
+    t->Initialize(addr, this);
     
     return t;
-}   
+}
 
-void Network::SerialDataReceived(const uint64_t source_addr, const std::vector<uint8_t>& data)
+Transaction* XBeeNetwork::BeginTransaction()
+{
+    return BeginTransaction(RXBEE_LOCAL_ADDRESS);
+}
+
+Transaction* XBeeNetwork::BeginBroadcastTransaction()
+{
+    return BeginTransaction(XBEE_BROADCAST_ADDRESS);
+}
+
+void XBeeNetwork::SerialDataReceived(const uint64_t source_addr, const std::vector<uint8_t>& data)
 {
     for(uint16_t i = 0; i < subscribers.size(); ++i)
     {
@@ -280,12 +226,12 @@ void Network::SerialDataReceived(const uint64_t source_addr, const std::vector<u
     }
 }
 
-void Network::OnNext(const std::vector<uint8_t>& data)
+void XBeeNetwork::OnNext(const std::vector<uint8_t>& data)
 {
     OnNext(&data[0], data.size());
 }
 
-void Network::OnNext(const uint8_t* data, const uint16_t len)
+void XBeeNetwork::OnNext(const uint8_t* data, const uint16_t len)
 {
     // TODO: Error on overrun
     for(uint16_t i = 0; i < len; ++i)
@@ -301,46 +247,38 @@ void Network::OnNext(const uint8_t* data, const uint16_t len)
     }
 }
     
-void Network::OnComplete()
+void XBeeNetwork::OnComplete()
 {
     
 }
 
-void Network::OnError(const int32_t error_code)
+void XBeeNetwork::OnError(const int32_t error_code)
 {
     
 }
 
 
-void Network::Subscribe(NetworkObserver* observer)
+void XBeeNetwork::Subscribe(NetworkObserver* observer)
 {
     subscribers.push_back(observer);
 }
 
-void Network::DeviceDiscovered(RemoteDevice* device)
+void XBeeNetwork::DeviceDiscovered(Address address, const std::string& node_id)
 {
     for (uint16_t i = 0; i < subscribers.size(); ++i)
     {
-        subscribers[i]->OnDeviceDiscovered(this, device);
+        subscribers[i]->OnDeviceDiscovered(this, address, node_id);
     }
 }
 
-void Network::StatusChanged(Network::ModemStatus status)
+void XBeeNetwork::StatusChanged(ModemStatus status)
 {
-    Network::ModemStatus prev = network_status;
+    ModemStatus prev = network_status;
     network_status = status;
     
     for (uint16_t i = 0; i < subscribers.size(); ++i)
     {
         subscribers[i]->OnStatusChanged(this, prev, network_status);
-    }
-}
-
-void Network::DeviceTransactionComplete(Device* d, Transaction* t)
-{
-    for (uint16_t i = 0; i < d->network->subscribers.size(); ++i)
-    {
-        d->network->subscribers[i]->OnDeviceTransactionComplete(d->network, d, t);
     }
 }
 

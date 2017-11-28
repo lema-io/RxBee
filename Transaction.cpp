@@ -2,6 +2,8 @@
 #include <stdlib.h>
 
 #include "Transaction.h"
+#include "Network.h"
+#include "Command.h"
 
 namespace RXBee
 {
@@ -19,23 +21,25 @@ void Transaction::OnComplete(Transaction::CompleteHandler handler, void* context
 
 Transaction::Transaction()
     : target_frame_id(0), on_complete_handler(NULL), 
-        on_complete_device_handler(NULL), dest(NULL), 
-        err(Error::NONE), chain(NULL), state(State::FREE),
-        on_complete_context(NULL)
+        dest_addr(RXBEE_LOCAL_ADDRESS),
+        err(Error::NONE), state(State::FREE),
+        on_complete_context(NULL), prev(NULL), next(NULL), queue_cmds(false)
 {
     
 }
+
 Transaction::Transaction(const Transaction& t)
 {
     current_frame = t.current_frame;
     target_frame_id = t.target_frame_id;
     on_complete_handler = t.on_complete_handler;
-    on_complete_device_handler = t.on_complete_device_handler;
-    dest = t.dest;
     err = t.err;
-    chain = t.chain;
     state = t.state;
     on_complete_context = t.on_complete_context;
+    dest_addr = t.dest_addr;
+    prev = t.prev;
+    next = t.next;
+    queue_cmds = t.queue_cmds;
 }
 
 Transaction::~Transaction()
@@ -48,24 +52,27 @@ Transaction& Transaction::operator=(Transaction& t)
     current_frame = t.current_frame;
     target_frame_id = t.target_frame_id;
     on_complete_handler = t.on_complete_handler;
-    on_complete_device_handler = t.on_complete_device_handler;
-    dest = t.dest;
     err = t.err;
-    chain = t.chain;
     state = t.state;
     on_complete_context = t.on_complete_context;
+    dest_addr = t.dest_addr;
+    prev = t.prev;
+    next = t.next;
+    queue_cmds = t.queue_cmds;
 }
 
-void Transaction::Initialize(Device* destination)
+void Transaction::Initialize(Address destination, XBeeNetwork* network)
 {
     target_frame_id = 0;
     on_complete_handler = NULL;
     on_complete_context = NULL;
-    dest = destination; 
+    dest_addr = destination;
     err = Error::NONE;
-    chain = NULL;
     current_frame.Clear();
     state = State::INITIALIZED;
+    net = network;
+    prev = NULL;
+    next = NULL;
 }
     
 Frame* Transaction::GetFrame()
@@ -76,6 +83,11 @@ Frame* Transaction::GetFrame()
 Transaction::Error Transaction::GetError() const
 {
     return err;
+}
+
+Address Transaction::GetDestination() const
+{
+    return dest_addr;
 }
     
 Transaction::State Transaction::GetState() const
@@ -120,42 +132,234 @@ void Transaction::Complete()
 {
     state = State::COMPLETE;
     
-    if (on_complete_device_handler != NULL)
-    {
-        on_complete_device_handler(this, dest);
-    }
-    
     if (on_complete_handler != NULL)
     {
-        on_complete_handler(this, dest, on_complete_context);
+        on_complete_handler(this, on_complete_context);
     }
     
     state = State::FREE;
 }
 
 
-void Transaction::Chain(Transaction* t)
+void Transaction::Chain(Transaction* chain)
 {
-    chain = t;
-    OnComplete(HandleChainComplete, on_complete_context);
+    Transaction* t = this;
+    while (t->next != NULL)
+    { 
+        t = t->next; 
+    }
+    t->next = chain;
+    chain->prev = t;
+    t->OnComplete(HandleChainComplete, on_complete_context);
 }
     
-void Transaction::Pend()
+Transaction* Transaction::Pend()
 {
-    state = State::PENDING;
-}
+    Transaction* t = this;
+    while ((t->prev != NULL) && (t->prev->state == State::FRAMED))
+    { 
+        t = t->prev; 
+    }
     
-void Transaction::OnCompleteDevice(Transaction::CompleteDeviceHandler handler)
-{
-    on_complete_device_handler = handler;
+    t->state = State::PENDING;
+    
+    return this;
 }
 
 void Transaction::HandleChainComplete(Transaction* transaction,
-                                      Device* dest_device,
                                       void* context)
 {
-    transaction->chain->SetError(transaction->GetError());
-    transaction->chain->Pend();
+    transaction->next->SetError(transaction->GetError());
+    transaction->next->Pend();
+}
+
+Transaction* Transaction::WritePreambleID(uint8_t id) 
+{ 
+    Transaction* t = GetNextCmdTransaction();
+    t->GetFrame()->AddFields(XBEE_CMD_HP, id); 
+    return t; 
+}
+
+Transaction* Transaction::ReadPreambleID()
+{ 
+    Transaction* t = GetNextCmdTransaction();
+    t->GetFrame()->AddFields(XBEE_CMD_HP); 
+    return t; 
+}
+
+Transaction* Transaction::WriteNetworkID(uint16_t id)
+{ 
+    Transaction* t = GetNextCmdTransaction();
+    t->GetFrame()->AddFields(XBEE_CMD_ID, id); 
+    return t; 
+}
+
+Transaction* Transaction::ReadNetworkID()
+{ 
+    Transaction* t = GetNextCmdTransaction();
+    t->GetFrame()->AddField(XBEE_CMD_ID);  
+    return t; 
+}
+
+Transaction* Transaction::WriteRoutingMode(uint8_t mode)
+{ 
+    Transaction* t = GetNextCmdTransaction();
+    t->GetFrame()->AddFields(XBEE_CMD_CE, mode);  
+    return t; 
+}
+
+Transaction* Transaction::ReadRoutingMode()
+{ 
+    Transaction* t = GetNextCmdTransaction();
+    t->GetFrame()->AddField(XBEE_CMD_CE);  
+    return t; 
+}
+
+Transaction* Transaction::WriteIdentifier(const std::string& identifier)
+{ 
+    Transaction* t = GetNextCmdTransaction();
+    t->GetFrame()->AddFields(XBEE_CMD_NI, identifier);  
+    return t; 
+} 
+
+Transaction* Transaction::ReadIdentifier()
+{ 
+    Transaction* t = GetNextCmdTransaction();
+    t->GetFrame()->AddField(XBEE_CMD_NI);  
+    return t; 
+} 
+
+Transaction* Transaction::ReadAddressUpper()
+{ 
+    Transaction* t = GetNextCmdTransaction();
+    t->GetFrame()->AddField(XBEE_CMD_SH);  
+    return t; 
+} 
+
+Transaction* Transaction::ReadAddressLower()
+{ 
+    Transaction* t = GetNextCmdTransaction();
+    t->GetFrame()->AddField(XBEE_CMD_SL);  
+    return t; 
+} 
+    
+Transaction* Transaction::NetworkDiscover()
+{
+    Transaction* t = GetNextCmdTransaction();
+    t->GetFrame()->AddField(XBEE_CMD_ND);  
+    return t;   
+}
+
+Transaction* Transaction::WriteApiMode(ApiMode mode)
+{
+    Transaction* t = GetNextCmdTransaction();
+    t->GetFrame()->AddFields(XBEE_CMD_AP, static_cast<uint8_t>(mode));  
+    return t;   
+}
+
+Transaction* Transaction::ReadApiMode()
+{
+    Transaction* t = GetNextCmdTransaction();
+    t->GetFrame()->AddField(XBEE_CMD_AP);  
+    return t;   
+}
+
+Transaction* Transaction::BeginCommandQueue() 
+{ 
+    queue_cmds = true; 
+    return this;
+}
+
+Transaction* Transaction::EndCommandQueue()
+{ 
+    Transaction* t = GetNextCmdTransaction();
+    t->GetFrame()->AddField(XBEE_CMD_AC); 
+    return t; 
+} 
+
+
+Transaction* Transaction::GetNextTransaction()
+{
+    Transaction* t = NULL;
+    
+    if (state == Transaction::State::INITIALIZED)
+    {
+        t = this;
+    }
+    else if (net != NULL)
+    {
+        t = net->BeginTransaction(dest_addr);
+        Chain(t);       
+    }
+    
+    t->state = State::FRAMED;
+    
+    return t;
+}
+
+
+Transaction* Transaction::GetNextCmdTransaction()
+{
+    Transaction* t = GetNextTransaction();
+    
+    if (t != NULL)
+    {
+        ApiID frame_id = ApiID::AT_COMMAND;
+
+        if (dest_addr != 0)
+        {
+            frame_id = ApiID::REMOTE_AT_COMMAND;
+
+        }
+        else if (queue_cmds)
+        {
+            frame_id = ApiID::AT_QUEUE_COMMAND;
+        }
+
+        Frame* f = t->GetFrame();
+        f->Initialize(frame_id, net->GetApiMode());
+
+        if (dest_addr != 0)
+        {
+            f->AddFields(dest_addr,
+                         static_cast<uint16_t>(0xFFFE),
+                         static_cast<uint8_t>(0));
+        }
+    }
+    
+    return t;
+}
+
+Transaction* Transaction::Transmit(const uint8_t* buffer, uint16_t n)
+{
+    Transaction* t = GetNextTransaction(); 
+
+    Frame* f = t->GetFrame();
+    f->Initialize(ApiID::TRANSMIT_REQUEST, net->GetApiMode());
+    
+    f->AddFields(dest_addr,
+                 static_cast<uint16_t>(0xFFFE), // Reserved
+                 static_cast<uint8_t>(0),       // Max hops on broadcast
+                 static_cast<uint8_t>(0xC0));   // Delivery method = DigiMesh
+    
+    if (n > 0x3D)
+    {
+        // Transmit up to max payload bytes
+        f->AddData(buffer, 0x3D);
+        
+        // Chain next section of data
+        
+        Transmit(&buffer[0x3D], n - 0x3D);
+    }
+    else
+    {
+        // Transmit entire data
+        f->AddData(buffer, n);
+        
+        Pend();
+    }
+    
+    return t;
 }
 
 

@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "Network.h"
+#include "Types.h"
 
 namespace RXBee
 {
@@ -18,13 +19,11 @@ public:
     NetworkObserver() { };
     virtual ~NetworkObserver() { };
    
-    virtual void OnSerialDataReceived(const uint64_t source_addr, const std::vector<uint8_t>& data) = 0;
+    virtual void OnSerialDataReceived(const Address source_addr, const std::vector<uint8_t>& data) = 0;
     
-    virtual void OnDeviceDiscovered(Network* network, RemoteDevice* Device) = 0;
+    virtual void OnDeviceDiscovered(XBeeNetwork* network, const Address address, const std::string& node_id) = 0;
     
-    virtual void OnStatusChanged(Network* network, Network::ModemStatus prev, Network::ModemStatus current) = 0;
-    
-    virtual void OnDeviceTransactionComplete(Network* network, Device* device, Transaction* transaction) = 0;
+    virtual void OnStatusChanged(XBeeNetwork* network, ModemStatus prev, ModemStatus current) = 0;
 };
 
 } // namespace RXBee
