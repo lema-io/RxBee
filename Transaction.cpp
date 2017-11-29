@@ -79,6 +79,11 @@ Frame* Transaction::GetFrame()
 {
     return &current_frame;
 }
+
+uint16_t Transaction::GetFrameID() const
+{
+    return target_frame_id;
+}
     
 Transaction::Error Transaction::GetError() const
 {
@@ -102,6 +107,10 @@ bool Transaction::TryComplete(const Frame& frame)
     if (frame.GetFrameID() == target_frame_id)
     {
         current_frame = frame;
+        
+        char buffer[30];
+        sprintf(buffer, "Transaction completed, id => %d", target_frame_id);
+        net->Print(buffer);
         
         Complete();
     }
@@ -170,7 +179,7 @@ void Transaction::HandleChainComplete(Transaction* transaction,
                                       void* context)
 {
     transaction->next->SetError(transaction->GetError());
-    transaction->next->Pend();
+    transaction->next->state = State::CHAINED;
 }
 
 Transaction* Transaction::WritePreambleID(uint8_t id) 

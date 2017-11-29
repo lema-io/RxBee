@@ -16,7 +16,8 @@ XBeeNetwork::XBeeNetwork()
     : network_status(ModemStatus::UNKNOWN),
       rx_buff_head_index(0), rx_buff_tail_index(0),
       tx_buff_index(0), frame_count(0),
-      frame_count_rollover(0), api_mode(ApiMode::ESCAPED)
+      frame_count_rollover(0), api_mode(ApiMode::ESCAPED),
+      print_handler(NULL)
 {
     rx_frame.Initialize(api_mode);
 }
@@ -30,34 +31,74 @@ XBeeNetwork::~XBeeNetwork()
 
 void XBeeNetwork::Service(uint32_t milliseconds)
 {
-    // Send pending transactions
-    for (uint16_t i = 0; i < pending.size(); ++i)
-    {
-        if (pending[i]->GetState() == Transaction::State::PENDING)
+    uint16_t i = 0;
+    
+    for (; i < pending.size(); ++i)
+    { 
+        if (pending[i]->GetState() == Transaction::State::CHAINED)
         {
-            frame_count++;
-            
-            Frame* f = pending[i]->GetFrame();
-            
-            f->SetFrameID(frame_count);
-            
-            // Write frame to transmit buffer 
-            subject.Next(f->Serialize());
-            
-            // Transaction sent
-            pending[i]->Sent(frame_count);
-            
-            // Increment frame count
-            if (frame_count == RXBEE_MAX_FRAME_COUNT)
+            break;
+        }
+    }
+    
+    if (i >= pending.size())
+    {
+        std::vector<Address> exclusion;
+        bool exclude = false;
+        // Send pending transactions
+        i = 0;
+        for (; i < pending.size(); ++i)
+        {
+            if (pending[i]->GetState() == Transaction::State::SENT)
             {
-                // Handler overflow
-                frame_count = 0;
-                frame_count_rollover++;
+                exclusion.push_back(pending[i]->GetDestination());
             }
-            else
+        }
+        i = 0;
+        for (; i < pending.size(); ++i)
+        { 
+            if (pending[i]->GetState() == Transaction::State::PENDING)
             {
-                frame_count++;
+                for (uint16_t e = 0; e < exclusion.size(); ++e)
+                {
+                    if (pending[i]->GetDestination() == exclusion[e])
+                    {
+                        exclude = true;
+                        break;
+                    }
+                }
+            
+                if (!exclude)
+                {
+                    break;
+                }
             }
+        }
+    }
+    
+    if (i < pending.size())
+    {  
+        frame_count++;
+
+        Frame* f = pending[i]->GetFrame();
+
+        f->SetFrameID(frame_count);
+
+        // Write frame to transmit buffer 
+        subject.Next(f->Serialize());
+
+        // Transaction sent
+        pending[i]->Sent(frame_count);
+        char buffer[30];
+        sprintf(buffer, "Transaction[%d] sent, id => %d", i, pending[i]->GetFrameID());
+        Print(buffer);
+
+        // Increment frame count
+        if (frame_count == RXBEE_MAX_FRAME_COUNT)
+        {
+            // Handler overflow
+            frame_count = 0;
+            frame_count_rollover++;
         }
     }
     
@@ -94,6 +135,19 @@ void XBeeNetwork::Service(uint32_t milliseconds)
                     Response::ModemStatusUpdate modem_status(api_frame);
                     StatusChanged(modem_status.status);
                 }
+                else if (api_frame.api_id == ApiID::TRANSMIT_STATUS)
+                {
+                    uint16_t p = 0; 
+                    for (;p < pending.size(); ++p)
+                    {
+                        // Complete the corresponding transaction
+                        if ((pending[p]->GetState() == Transaction::State::SENT) &&
+                            pending[p]->TryComplete(rx_frame))
+                        { 
+                            break;
+                        }
+                    }
+                }
                 else
                 {
                     uint16_t p = 0; 
@@ -102,7 +156,7 @@ void XBeeNetwork::Service(uint32_t milliseconds)
                         // Complete the corresponding transaction
                         if ((pending[p]->GetState() == Transaction::State::SENT) &&
                             pending[p]->TryComplete(rx_frame))
-                        {   
+                        { 
                             break;
                         }
                     }
@@ -202,6 +256,10 @@ Transaction* XBeeNetwork::BeginTransaction(Address addr)
         
         pending.push_back(t);
     }
+            
+    char buffer[30];
+    sprintf(buffer, "Transaction[%d]", i);
+    Print(buffer);
     
     t->Initialize(addr, this);
     
@@ -261,6 +319,16 @@ void XBeeNetwork::OnError(const int32_t error_code)
 void XBeeNetwork::Subscribe(NetworkObserver* observer)
 {
     subscribers.push_back(observer);
+}
+    
+void XBeeNetwork::RegisterPrintHandler(XBeeNetwork::PrintCallback handler)
+{
+    print_handler = handler;
+}
+
+void XBeeNetwork::Print(const char* msg)
+{
+    if (print_handler != NULL) { print_handler(msg); }
 }
 
 void XBeeNetwork::DeviceDiscovered(Address address, const std::string& node_id)

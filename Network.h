@@ -24,6 +24,7 @@ class XBeeNetwork : public SerialDataObserver
 {
 public:
     typedef void (*Callback)(XBeeNetwork* source);
+    typedef void (*PrintCallback)(const char* message);
 
     
     
@@ -81,6 +82,10 @@ public:
     void OnError(const int32_t error_code);
     
     void Subscribe(NetworkObserver* observer);
+    
+    void RegisterPrintHandler(PrintCallback handler);
+    
+    void Print(const char* msg);
 
 protected:
     
@@ -92,8 +97,6 @@ protected:
     
 private:
     
-    static void TransactionComplete(Transaction* transaction);
-    
     ModemStatus network_status;
     
     Frame rx_frame;
@@ -102,7 +105,7 @@ private:
     uint32_t frame_count_rollover;
     
     std::vector<Transaction*> pending;
-    
+        
     std::vector<NetworkObserver*> subscribers;
     
     uint8_t rx_buff[RXBEE_RX_BUFFER_SIZE];
@@ -116,6 +119,7 @@ private:
     
     Callback disc_comp_cb;
     Callback status_changed_cb;
+    PrintCallback print_handler;
     
     Address local_addr;
     ApiMode api_mode;

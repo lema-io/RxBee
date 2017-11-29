@@ -54,6 +54,8 @@ public:
     
     Address GetDestination() const;
     
+    uint16_t GetFrameID() const;
+    
     Transaction* WritePreambleID(uint8_t id);
     Transaction* ReadPreambleID();
 
@@ -93,6 +95,7 @@ protected:
         INITIALIZED,
         FRAMED,
         PENDING,
+        CHAINED,
         SENT,
         COMPLETE
     };
