@@ -31,13 +31,118 @@ XBeeNetwork::~XBeeNetwork()
 
 void XBeeNetwork::Service(uint32_t milliseconds)
 {
-    uint16_t i = 0;
+    uint16_t i = 0;    
+    uint16_t buff_max = rx_buff_tail_index;
     
-    for (; i < pending.size(); ++i)
-    { 
-        if (pending[i]->GetState() == Transaction::State::CHAINED)
+    // Set max buff index to RXBEE_RX_BUFFER_SIZE if the
+    // head index is greater than the tail
+    if (rx_buff_head_index > rx_buff_tail_index)
+    {
+        buff_max = RXBEE_RX_BUFFER_SIZE;
+    }
+    
+    // Read from receive buffer until head index equals tail index
+    while (rx_buff_head_index != rx_buff_tail_index)
+    {
+        uint16_t tmp_head_idx = rx_buff_head_index;
+        // Read up to maximum from receive buffer
+        if (rx_frame.Deserialize(rx_buff, buff_max, rx_buff_head_index))
         {
+            // Complete frame received
+         
+            Response::ApiFrame api_frame (&rx_frame);
+            if (api_frame.extracted == true)
+            {  
+                if (api_frame.api_id == ApiID::RECEIVE_PACKET)
+                {
+                    // Received serial data
+                    std::vector<uint8_t> frame_data;
+                    Response::ReceivePacket packet(api_frame, frame_data);
+                    SerialDataReceived(packet.sender_addr, frame_data); // Notify observers
+                }
+                else if (api_frame.api_id == ApiID::MODEM_STATUS)
+                {
+                    Response::ModemStatusUpdate modem_status(api_frame);
+                    StatusChanged(modem_status.status);
+                }
+                else
+                {
+                    uint16_t p = 0; 
+                    for (;p < pending.size(); ++p)
+                    {
+                        // Complete the corresponding transaction
+                        if ((pending[p]->GetState() == Transaction::State::SENT) &&
+                            pending[p]->TryComplete(rx_frame))
+                        { 
+                            break;
+                        }
+                    }
+
+                    // Handle any AT responses
+                    if ((api_frame.api_id == ApiID::AT_COMMAND_RESPONSE) ||
+                        (api_frame.api_id == ApiID::REMOTE_AT_COMMAND_RESPONSE))
+                    {
+                        Response::ATCommand::Response at_rsp(api_frame);
+                        if (at_rsp.command == XBeeATCommand::ND)
+                        {
+                            Response::ATCommand::ND_Rsp rsp = at_rsp.ND();
+
+                            if (rsp.address != local_addr)
+                            {
+                                std::string id(rsp.node_identifier);
+                                DeviceDiscovered(rsp.address, id);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // reset the receive frame
+            rx_frame.Initialize(api_mode);
             break;
+        }
+        else if (tmp_head_idx == rx_buff_head_index)
+        {
+            // Did not deserialize any more data, wait for more
+            break;
+        }
+        else
+        {
+            // Nothing
+        }
+        
+        // Reset head index when it reaches the end of the buffer
+        if (rx_buff_head_index >= RXBEE_RX_BUFFER_SIZE)
+        {
+            rx_buff_head_index = 0;         // Start at front of buffer
+            buff_max = rx_buff_tail_index;  // Max is now the tail index
+        }
+    }
+    
+    i = 0;
+    for (; i < pending.size(); ++i)
+    {
+        if (pending[i]->GetState() == Transaction::State::SENT)
+        {
+            if (pending[i]->HasTimeoutExpired(milliseconds))
+            {
+                pending[i]->Pend();
+                char buffer[30];
+                sprintf(buffer, "Transaction Timeout : %d", i);
+                Print(buffer);
+            }
+        }
+    }
+    
+    if (i >= pending.size())
+    {
+        i = 0;
+        for (; i < pending.size(); ++i)
+        { 
+            if (pending[i]->GetState() == Transaction::State::CHAINED)
+            {
+                break;
+            }
         }
     }
     
@@ -101,106 +206,6 @@ void XBeeNetwork::Service(uint32_t milliseconds)
             frame_count_rollover++;
         }
     }
-    
-    uint16_t buff_max = rx_buff_tail_index;
-    
-    // Set max buff index to RXBEE_RX_BUFFER_SIZE if the
-    // head index is greater than the tail
-    if (rx_buff_head_index > rx_buff_tail_index)
-    {
-        buff_max = RXBEE_RX_BUFFER_SIZE;
-    }
-    
-    // Read from receive buffer until head index equals tail index
-    while (rx_buff_head_index != rx_buff_tail_index)
-    {
-        uint16_t tmp_head_idx = rx_buff_head_index;
-        // Read up to maximum from receive buffer
-        if (rx_frame.Deserialize(rx_buff, buff_max, rx_buff_head_index))
-        {
-            // Complete frame received
-         
-            Response::ApiFrame api_frame (&rx_frame);
-            if (api_frame.extracted == true)
-            {  
-                if (api_frame.api_id == ApiID::RECEIVE_PACKET)
-                {
-                    // Received serial data
-                    std::vector<uint8_t> frame_data;
-                    Response::ReceivePacket packet(api_frame, frame_data);
-                    SerialDataReceived(packet.sender_addr, frame_data); // Notify observers
-                }
-                else if (api_frame.api_id == ApiID::MODEM_STATUS)
-                {
-                    Response::ModemStatusUpdate modem_status(api_frame);
-                    StatusChanged(modem_status.status);
-                }
-                else if (api_frame.api_id == ApiID::TRANSMIT_STATUS)
-                {
-                    uint16_t p = 0; 
-                    for (;p < pending.size(); ++p)
-                    {
-                        // Complete the corresponding transaction
-                        if ((pending[p]->GetState() == Transaction::State::SENT) &&
-                            pending[p]->TryComplete(rx_frame))
-                        { 
-                            break;
-                        }
-                    }
-                }
-                else
-                {
-                    uint16_t p = 0; 
-                    for (;p < pending.size(); ++p)
-                    {
-                        // Complete the corresponding transaction
-                        if ((pending[p]->GetState() == Transaction::State::SENT) &&
-                            pending[p]->TryComplete(rx_frame))
-                        { 
-                            break;
-                        }
-                    }
-
-                    // Handle any AT responses
-                    if ((api_frame.api_id == ApiID::AT_COMMAND_RESPONSE) ||
-                        (api_frame.api_id == ApiID::REMOTE_AT_COMMAND_RESPONSE))
-                    {
-                        Response::ATCommand::Response at_rsp(api_frame);
-                        if (at_rsp.command == XBeeATCommand::ND)
-                        {
-                            Response::ATCommand::ND_Rsp rsp = at_rsp.ND();
-
-                            if (rsp.address != local_addr)
-                            {
-                                std::string id(rsp.node_identifier);
-                                DeviceDiscovered(rsp.address, id);
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // reset the receive frame
-            rx_frame.Initialize(api_mode);
-            break;
-        }
-        else if (tmp_head_idx == rx_buff_head_index)
-        {
-            // Did not deserialize any more data, wait for more
-            break;
-        }
-        else
-        {
-            // Nothing
-        }
-        
-        // Reset head index when it reaches the end of the buffer
-        if (rx_buff_head_index >= RXBEE_RX_BUFFER_SIZE)
-        {
-            rx_buff_head_index = 0;         // Start at front of buffer
-            buff_max = rx_buff_tail_index;  // Max is now the tail index
-        }
-    }
 }
 
 uint64_t XBeeNetwork::GetTotalTransactions() const
@@ -250,18 +255,21 @@ Transaction* XBeeNetwork::BeginTransaction(Address addr)
         }
     }
     
-    if (t == NULL)
+    if ((t == NULL) && (pending.size() < 20))
     {
         t = new Transaction();
         
         pending.push_back(t);
     }
             
-    char buffer[30];
-    sprintf(buffer, "Transaction[%d]", i);
-    Print(buffer);
-    
-    t->Initialize(addr, this);
+    if (t != NULL)
+    {
+        char buffer[30];
+        sprintf(buffer, "Transaction created[%d]", i);
+        Print(buffer);
+
+        t->Initialize(addr, this);
+    }
     
     return t;
 }
@@ -291,6 +299,7 @@ void XBeeNetwork::OnNext(const std::vector<uint8_t>& data)
 
 void XBeeNetwork::OnNext(const uint8_t* data, const uint16_t len)
 {
+    bool overrun = false;
     // TODO: Error on overrun
     for(uint16_t i = 0; i < len; ++i)
     {
@@ -301,6 +310,22 @@ void XBeeNetwork::OnNext(const uint8_t* data, const uint16_t len)
         if (rx_buff_tail_index >= RXBEE_RX_BUFFER_SIZE)
         {
             rx_buff_tail_index = 0;
+        }
+        
+        if (rx_buff_tail_index == rx_buff_head_index)
+        {
+            overrun = true;
+            rx_frame.Initialize(api_mode);
+            Print("RXBee RX overrun");
+        }
+        
+        if (overrun)
+        {
+            rx_buff_head_index = rx_buff_tail_index + 1;
+            if (rx_buff_head_index >= RXBEE_RX_BUFFER_SIZE)
+            {
+                rx_buff_head_index = 0;
+            }
         }
     }
 }

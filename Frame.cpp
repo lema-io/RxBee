@@ -451,6 +451,12 @@ bool Frame::Deserialize(const uint8_t* buff, const uint16_t buff_size, uint16_t&
             (data.size() > 0) &&
             (buff[index]) == XBEE_ESCAPE_BYTE)
         {
+            if ((buff[index]) == XBEE_PACKET_START)
+            {
+                // Frame error
+                Initialize(ApiMode::ESCAPED);
+                data.push_back(buff[index]);
+            }
             // Escape character is last in buffer, leave it until 
             // more data is available
             if (index == buff_size - 1)

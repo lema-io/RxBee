@@ -23,7 +23,8 @@ Transaction::Transaction()
     : target_frame_id(0), on_complete_handler(NULL), 
         dest_addr(RXBEE_LOCAL_ADDRESS),
         err(Error::NONE), state(State::FREE),
-        on_complete_context(NULL), prev(NULL), next(NULL), queue_cmds(false)
+        on_complete_context(NULL), prev(NULL), next(NULL), queue_cmds(false),
+        apply_timeout(true)
 {
     
 }
@@ -40,6 +41,8 @@ Transaction::Transaction(const Transaction& t)
     prev = t.prev;
     next = t.next;
     queue_cmds = t.queue_cmds;
+    apply_timeout = t.apply_timeout;
+    timeout_remaining = t.timeout_remaining;
 }
 
 Transaction::~Transaction()
@@ -59,6 +62,8 @@ Transaction& Transaction::operator=(Transaction& t)
     prev = t.prev;
     next = t.next;
     queue_cmds = t.queue_cmds;
+    apply_timeout = t.apply_timeout;
+    timeout_remaining = t.timeout_remaining;
 }
 
 void Transaction::Initialize(Address destination, XBeeNetwork* network)
@@ -73,6 +78,8 @@ void Transaction::Initialize(Address destination, XBeeNetwork* network)
     net = network;
     prev = NULL;
     next = NULL;
+    apply_timeout = true;
+    timeout_remaining = 300;
 }
     
 Frame* Transaction::GetFrame()
@@ -106,6 +113,7 @@ bool Transaction::TryComplete(const Frame& frame)
     
     if (frame.GetFrameID() == target_frame_id)
     {
+        current_frame.Clear();
         current_frame = frame;
         
         char buffer[30];
@@ -134,7 +142,6 @@ void Transaction::Sent(uint16_t frame_id)
 {
     target_frame_id = frame_id;
     state = State::SENT;
-    current_frame.Clear();
 }
 
 void Transaction::Complete()
@@ -158,7 +165,11 @@ void Transaction::Chain(Transaction* chain)
         t = t->next; 
     }
     t->next = chain;
-    chain->prev = t;
+    
+    if (chain != NULL)
+    {
+        chain->prev = t;
+    }
     t->OnComplete(HandleChainComplete, on_complete_context);
 }
     
@@ -171,15 +182,49 @@ Transaction* Transaction::Pend()
     }
     
     t->state = State::PENDING;
+    if ((t->next != NULL) && (t->next->state == State::CHAINED))
+    {
+        t->next->state = State::FRAMED;
+    }
+    t->timeout_remaining = 300;
     
     return this;
+}
+
+
+Transaction* Transaction::GetNext()
+{
+    return next;
+}
+
+
+    
+bool Transaction::HasTimeoutExpired(int32_t elapsed)
+{
+    if (apply_timeout)
+    {
+        if (elapsed < timeout_remaining)
+        {
+            timeout_remaining -= elapsed;
+        }
+        else
+        {
+            timeout_remaining = 0;
+            state = State::TIMEOUT;
+        }
+    }
+    
+    return apply_timeout && (state == State::TIMEOUT);
 }
 
 void Transaction::HandleChainComplete(Transaction* transaction,
                                       void* context)
 {
-    transaction->next->SetError(transaction->GetError());
-    transaction->next->state = State::CHAINED;
+    if ((transaction != NULL) && (transaction->next != NULL))
+    {
+        transaction->next->SetError(transaction->GetError());
+        transaction->next->state = State::CHAINED;
+    }
 }
 
 Transaction* Transaction::WritePreambleID(uint8_t id) 
@@ -256,6 +301,7 @@ Transaction* Transaction::NetworkDiscover()
 {
     Transaction* t = GetNextCmdTransaction();
     t->GetFrame()->AddField(XBEE_CMD_ND);  
+    t->apply_timeout = false;
     return t;   
 }
 
@@ -343,29 +389,32 @@ Transaction* Transaction::Transmit(const uint8_t* buffer, uint16_t n)
 {
     Transaction* t = GetNextTransaction(); 
 
-    Frame* f = t->GetFrame();
-    f->Initialize(ApiID::TRANSMIT_REQUEST, net->GetApiMode());
-    
-    f->AddFields(dest_addr,
-                 static_cast<uint16_t>(0xFFFE), // Reserved
-                 static_cast<uint8_t>(0),       // Max hops on broadcast
-                 static_cast<uint8_t>(0xC0));   // Delivery method = DigiMesh
-    
-    if (n > 0x3D)
+    if (t != NULL)
     {
-        // Transmit up to max payload bytes
-        f->AddData(buffer, 0x3D);
-        
-        // Chain next section of data
-        
-        Transmit(&buffer[0x3D], n - 0x3D);
-    }
-    else
-    {
-        // Transmit entire data
-        f->AddData(buffer, n);
-        
-        Pend();
+        Frame* f = t->GetFrame();
+        f->Initialize(ApiID::TRANSMIT_REQUEST, net->GetApiMode());
+
+        f->AddFields(dest_addr,
+                     static_cast<uint16_t>(0xFFFE), // Reserved
+                     static_cast<uint8_t>(0),       // Max hops on broadcast
+                     static_cast<uint8_t>(0xC0));   // Delivery method = DigiMesh
+
+        if (n > 0x3D)
+        {
+            // Transmit up to max payload bytes
+            f->AddData(buffer, 0x3D);
+
+            // Chain next section of data
+
+            Transmit(&buffer[0x3D], n - 0x3D);
+        }
+        else
+        {
+            // Transmit entire data
+            f->AddData(buffer, n);
+
+            Pend();
+        }
     }
     
     return t;

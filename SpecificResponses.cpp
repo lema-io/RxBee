@@ -4,6 +4,15 @@
 namespace RXBee {
 namespace Response {
     
+ApiFrame::ApiFrame(Frame* f) : frame(f), api_id(ApiID::UNKOWN), extracted(false)
+{
+    if (f != NULL)
+    {
+        api_id = frame->GetApiID();
+        extracted = true;
+    }
+}
+    
 namespace ATCommand
 {
 

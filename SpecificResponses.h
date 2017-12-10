@@ -35,14 +35,7 @@ namespace Response {
     
 struct ApiFrame
 {
-    ApiFrame(Frame* f) : frame(f), api_id(ApiID::UNKOWN), extracted(false)
-    {
-        if (f != NULL)
-        {
-            api_id = frame->GetApiID();
-            extracted = true;
-        }
-    }
+    ApiFrame(Frame* f);
     
     Frame* frame;
     ApiID api_id;

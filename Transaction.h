@@ -85,6 +85,9 @@ public:
     
     Transaction* Pend();
     
+    Transaction* GetNext();
+    
+    bool HasTimeoutExpired(int32_t elapsed);
     
 protected:
     friend class XBeeNetwork;
@@ -97,6 +100,7 @@ protected:
         PENDING,
         CHAINED,
         SENT,
+        TIMEOUT,
         COMPLETE
     };
     
@@ -131,6 +135,8 @@ private:
     bool queue_cmds;
     Transaction* prev;
     Transaction* next;
+    bool apply_timeout;
+    int32_t timeout_remaining;
 };
     
 } // namespace RXBee
