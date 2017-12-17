@@ -109,7 +109,6 @@ private:
     std::vector<NetworkObserver*> subscribers;
     
     uint8_t rx_buff[RXBEE_RX_BUFFER_SIZE];
-    uint8_t tx_buff[RXBEE_TX_BUFFER_SIZE];
     
     uint16_t rx_buff_head_index;
     uint16_t rx_buff_tail_index;

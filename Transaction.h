@@ -20,6 +20,8 @@ public:
     enum class Error
     {
         NONE,
+        TRANSACTION_OVERFLOW,
+        TRANSACTION_TIMEOUT,
         INVALID_DESTINATION,
         INVALID_TRANSACTION_STATE,
         AT_CMD_ERROR,
@@ -101,7 +103,8 @@ protected:
         CHAINED,
         SENT,
         TIMEOUT,
-        COMPLETE
+        COMPLETE,
+        ERROR
     };
     
     State GetState() const;
@@ -113,6 +116,8 @@ protected:
     void SetError(Error error);
     
     void SetFrame(const Frame& frame);
+    
+    void CompleteWithError(Transaction::Error error);
     
     void Complete();
     

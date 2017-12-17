@@ -10,7 +10,12 @@
 
 namespace RXBee
 {
+    
+#ifndef RXBEE_MAX_TRANSACTIONS
+#define RXBEE_MAX_TRANSACTIONS 20
+#endif
 
+char print_buffer[30];
 
 XBeeNetwork::XBeeNetwork()
     : network_status(ModemStatus::UNKNOWN),
@@ -33,6 +38,25 @@ void XBeeNetwork::Service(uint32_t milliseconds)
 {
     uint16_t i = 0;    
     uint16_t buff_max = rx_buff_tail_index;
+//    
+//    sprintf(print_buffer, "RXBee milliseconds [%d]", milliseconds);
+//    Print(print_buffer);
+//    
+    if (pending.size() >= RXBEE_MAX_TRANSACTIONS)
+    {
+        for (;i < pending.size(); ++i)
+        {
+            if (pending[i] != NULL)
+            {
+                pending[i]->CompleteWithError(Transaction::Error::TRANSACTION_OVERFLOW);            
+                delete pending[i];
+            }
+        }
+        
+        pending.resize(RXBEE_MAX_TRANSACTIONS);
+        Print("Transactions cleared!");
+    }
+    
     
     // Set max buff index to RXBEE_RX_BUFFER_SIZE if the
     // head index is greater than the tail
@@ -72,7 +96,7 @@ void XBeeNetwork::Service(uint32_t milliseconds)
                     {
                         // Complete the corresponding transaction
                         if ((pending[p]->GetState() == Transaction::State::SENT) &&
-                            pending[p]->TryComplete(rx_frame))
+                            (pending[p]->TryComplete(rx_frame)))
                         { 
                             break;
                         }
@@ -121,15 +145,14 @@ void XBeeNetwork::Service(uint32_t milliseconds)
     
     i = 0;
     for (; i < pending.size(); ++i)
-    {
+    {                
         if (pending[i]->GetState() == Transaction::State::SENT)
         {
             if (pending[i]->HasTimeoutExpired(milliseconds))
             {
-                pending[i]->Pend();
-                char buffer[30];
-                sprintf(buffer, "Transaction Timeout : %d", i);
-                Print(buffer);
+                pending[i]->CompleteWithError(Transaction::Error::TRANSACTION_TIMEOUT);
+                sprintf(print_buffer, "Transaction Timeout : %d", i);
+                Print(print_buffer);
             }
         }
     }
@@ -194,9 +217,8 @@ void XBeeNetwork::Service(uint32_t milliseconds)
 
         // Transaction sent
         pending[i]->Sent(frame_count);
-        char buffer[30];
-        sprintf(buffer, "Transaction[%d] sent, id => %d", i, pending[i]->GetFrameID());
-        Print(buffer);
+        sprintf(print_buffer, "Transaction[%d] sent, id => %d", i, pending[i]->GetFrameID());
+        Print(print_buffer);
 
         // Increment frame count
         if (frame_count == RXBEE_MAX_FRAME_COUNT)
@@ -244,6 +266,7 @@ Transaction* XBeeNetwork::BeginTransaction(Address addr)
 {
     uint16_t i = 0; 
     Transaction* t = NULL;
+    
     for (;i < pending.size(); ++i)
     {
         if (pending[i]->GetState() == Transaction::State::FREE)
@@ -255,7 +278,7 @@ Transaction* XBeeNetwork::BeginTransaction(Address addr)
         }
     }
     
-    if ((t == NULL) && (pending.size() < 20))
+    if ((t == NULL))
     {
         t = new Transaction();
         
@@ -264,9 +287,8 @@ Transaction* XBeeNetwork::BeginTransaction(Address addr)
             
     if (t != NULL)
     {
-        char buffer[30];
-        sprintf(buffer, "Transaction created[%d]", i);
-        Print(buffer);
+        sprintf(print_buffer, "Transaction created[%d]", i);
+        Print(print_buffer);
 
         t->Initialize(addr, this);
     }
@@ -299,8 +321,6 @@ void XBeeNetwork::OnNext(const std::vector<uint8_t>& data)
 
 void XBeeNetwork::OnNext(const uint8_t* data, const uint16_t len)
 {
-    bool overrun = false;
-    // TODO: Error on overrun
     for(uint16_t i = 0; i < len; ++i)
     {
         rx_buff[rx_buff_tail_index] = data[i];
@@ -314,18 +334,12 @@ void XBeeNetwork::OnNext(const uint8_t* data, const uint16_t len)
         
         if (rx_buff_tail_index == rx_buff_head_index)
         {
-            overrun = true;
+            // Overrun, reset rx_frame and rx_buff
             rx_frame.Initialize(api_mode);
             Print("RXBee RX overrun");
-        }
-        
-        if (overrun)
-        {
-            rx_buff_head_index = rx_buff_tail_index + 1;
-            if (rx_buff_head_index >= RXBEE_RX_BUFFER_SIZE)
-            {
-                rx_buff_head_index = 0;
-            }
+            rx_buff_tail_index = 0;
+            rx_buff_head_index = 0;
+            break;
         }
     }
 }

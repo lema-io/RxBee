@@ -144,6 +144,19 @@ void Transaction::Sent(uint16_t frame_id)
     state = State::SENT;
 }
 
+void Transaction::CompleteWithError(Transaction::Error error)
+{
+    err = error;
+    state = State::ERROR;
+    
+    if (on_complete_handler != NULL)
+    {
+        on_complete_handler(this, on_complete_context);
+    }
+    
+    state = State::FREE;
+}
+
 void Transaction::Complete()
 {
     state = State::COMPLETE;
@@ -222,8 +235,15 @@ void Transaction::HandleChainComplete(Transaction* transaction,
 {
     if ((transaction != NULL) && (transaction->next != NULL))
     {
-        transaction->next->SetError(transaction->GetError());
-        transaction->next->state = State::CHAINED;
+        if (transaction->state == State::ERROR)
+        {
+            transaction->next->CompleteWithError(transaction->err);
+        }
+        else
+        {
+            transaction->next->SetError(transaction->err);
+            transaction->next->state = State::CHAINED;
+        }
     }
 }
 
