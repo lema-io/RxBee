@@ -12,6 +12,7 @@
 #include "SerialDataSubject.h"
 #include "Transaction.h"
 #include "Types.h"
+#include "SpecificResponses.h"
 
 
 
@@ -62,9 +63,7 @@ public:
     ModemStatus GetStatus();
     
     uint16_t GetNetworkID() const;
-    void SetNetworkID(const uint16_t id);
-    uint8_t GetPreambleID() const;
-    void SetPreambleID(const uint8_t id);    
+    uint8_t GetPreambleID() const; 
     
     ApiMode GetApiMode();
     
@@ -122,6 +121,9 @@ private:
     
     Address local_addr;
     ApiMode api_mode;
+    char node_identifier[XBEE_AT_NI_IDENT_LEN];
+    uint8_t preamble_id;
+    uint16_t network_id;
 };
 
 } // namespace XBee

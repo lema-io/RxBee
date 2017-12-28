@@ -1,11 +1,11 @@
 
 #include <stdlib.h>
+#include <string.h>
 
 #include "Network.h"
 #include "Transaction.h"
 #include "SerialDataSubject.h"
 #include "NetworkObserver.h"
-#include "SpecificResponses.h"
 
 
 namespace RXBee
@@ -107,6 +107,7 @@ void XBeeNetwork::Service(uint32_t milliseconds)
                         (api_frame.api_id == ApiID::REMOTE_AT_COMMAND_RESPONSE))
                     {
                         Response::ATCommand::Response at_rsp(api_frame);
+                        
                         if (at_rsp.command == XBeeATCommand::ND)
                         {
                             Response::ATCommand::ND_Rsp rsp = at_rsp.ND();
@@ -116,6 +117,21 @@ void XBeeNetwork::Service(uint32_t milliseconds)
                                 std::string id(rsp.node_identifier);
                                 DeviceDiscovered(rsp.address, id);
                             }
+                        }
+                        else if (at_rsp.command == XBeeATCommand::ID)
+                        {
+                            Response::ATCommand::ID_Rsp rsp = at_rsp.ID();
+                            network_id = rsp.network_id;
+                        }
+                        else if (at_rsp.command == XBeeATCommand::HP)
+                        {
+                            Response::ATCommand::HP_Rsp rsp = at_rsp.HP();
+                            preamble_id = rsp.preamble_id;
+                        }
+                        else if (at_rsp.command == XBeeATCommand::NI)
+                        {
+                            Response::ATCommand::NI_Rsp rsp = at_rsp.NI();
+                            std::strcpy(node_identifier, rsp.node_identifier); 
                         }
                     }
                 }
@@ -255,6 +271,16 @@ void XBeeNetwork::OnStatusChanged(XBeeNetwork::Callback callback)
 ModemStatus XBeeNetwork::GetStatus()
 {
     return network_status;
+}
+
+uint16_t XBeeNetwork::GetNetworkID() const
+{
+    return network_id;
+}
+
+uint8_t XBeeNetwork::GetPreambleID() const
+{
+    return preamble_id;
 }
 
 ApiMode XBeeNetwork::GetApiMode()
