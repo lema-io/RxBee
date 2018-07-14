@@ -64,6 +64,7 @@ public:
     
     uint16_t GetNetworkID() const;
     uint8_t GetPreambleID() const; 
+    Address GetLocalAddress() const;
     
     ApiMode GetApiMode();
     

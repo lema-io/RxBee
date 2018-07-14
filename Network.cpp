@@ -128,6 +128,16 @@ void XBeeNetwork::Service(uint32_t milliseconds)
                             Response::ATCommand::HP_Rsp rsp = at_rsp.HP();
                             preamble_id = rsp.preamble_id;
                         }
+                        else if (at_rsp.command == XBeeATCommand::SH)
+                        {
+                            Response::ATCommand::SH_Rsp rsp = at_rsp.SH();
+                            local_addr |= rsp.address;
+                        }
+                        else if (at_rsp.command == XBeeATCommand::SL)
+                        {
+                            Response::ATCommand::SL_Rsp rsp = at_rsp.SL();
+                            local_addr |= rsp.address;
+                        }
                         else if (at_rsp.command == XBeeATCommand::NI)
                         {
                             Response::ATCommand::NI_Rsp rsp = at_rsp.NI();
@@ -281,6 +291,11 @@ uint16_t XBeeNetwork::GetNetworkID() const
 uint8_t XBeeNetwork::GetPreambleID() const
 {
     return preamble_id;
+}
+
+Address XBeeNetwork::GetLocalAddress() const
+{
+    return local_addr;
 }
 
 ApiMode XBeeNetwork::GetApiMode()

@@ -884,7 +884,12 @@ SE_Rsp Response::SE() const
 SH_Rsp Response::SH() const
 {
     SH_Rsp rsp;
-    if(extracted) { frame->GetField(data_offset, rsp.address); }
+    uint32_t temp;
+    if(extracted && frame->GetField(data_offset, temp))
+    { 
+        rsp.address = temp; 
+        rsp.address = rsp.address << 32;
+    }
     else { rsp.address = 0; }
     return rsp;
 }
@@ -894,7 +899,9 @@ SH_Rsp Response::SH() const
 SL_Rsp Response::SL() const
 {
     SL_Rsp rsp;
-    if(extracted) { frame->GetField(data_offset, rsp.address); }
+    uint32_t temp;
+    if(extracted && frame->GetField(data_offset, temp))
+    { rsp.address = temp; }
     else { rsp.address = 0; }
     return rsp;
 }
