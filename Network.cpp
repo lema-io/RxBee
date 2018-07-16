@@ -12,7 +12,7 @@ namespace RXBee
 {
     
 #ifndef RXBEE_MAX_TRANSACTIONS
-#define RXBEE_MAX_TRANSACTIONS 20
+#define RXBEE_MAX_TRANSACTIONS 50
 #endif
 
 char print_buffer[30];
@@ -53,7 +53,7 @@ void XBeeNetwork::Service(uint32_t milliseconds)
             }
         }
         
-        pending.resize(RXBEE_MAX_TRANSACTIONS);
+        pending.clear();
         Print("Transactions cleared!");
     }
     
