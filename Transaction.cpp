@@ -116,10 +116,11 @@ bool Transaction::TryComplete(const Frame& frame)
         current_frame.Clear();
         current_frame = frame;
         
+#if RXBEE_DEBUG
         char buffer[30];
         sprintf(buffer, "Transaction completed, id => %d", target_frame_id);
         net->Print(buffer);
-        
+#endif
         Complete();
     }
     

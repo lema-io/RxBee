@@ -2,6 +2,8 @@
 #ifndef RXBEE_TYPES_H
 #define RXBEE_TYPES_H
 
+#include "RXBee_Config.h"
+
 namespace RXBee
 {
     
@@ -10,13 +12,8 @@ namespace RXBee
 #define XBEE_PREAMBLE_ID_DEFAULT (0x00)
 
 #define XBEE_BROADCAST_ADDRESS  (0x000000000000FFFF)
-#define RXBEE_LOCAL_ADDRESS     (0x0000000000000000)
+#define RXBEE_LOCAL_ADDRESS     (0x0000000000000000) 
 
-#define RXBEE_RX_BUFFER_SIZE   (1024)
-
-#define RXBEE_MAX_FRAME_COUNT  (0xFF)
-    
-    
 typedef uint64_t Address;
    
 enum class ApiID : uint8_t 

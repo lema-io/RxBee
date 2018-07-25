@@ -7,13 +7,10 @@
 #include "SerialDataSubject.h"
 #include "NetworkObserver.h"
 
+#define RXBEE_MAX_FRAME_COUNT  (0xFF) // Maximum frame id before rollover
 
 namespace RXBee
 {
-    
-#ifndef RXBEE_MAX_TRANSACTIONS
-#define RXBEE_MAX_TRANSACTIONS 50
-#endif
 
 char print_buffer[30];
 
@@ -54,7 +51,7 @@ void XBeeNetwork::Service(uint32_t milliseconds)
         }
         
         pending.clear();
-        Print("Transactions cleared!");
+        Print("RXBee: Transactions cleared!");
     }
     
     
@@ -118,7 +115,12 @@ void XBeeNetwork::Service(uint32_t milliseconds)
                                 DeviceDiscovered(rsp.address, id);
                             }
                         }
-                        else if (at_rsp.command == XBeeATCommand::ID)
+                    }
+                    else if (api_frame.api_id == ApiID::AT_COMMAND_RESPONSE)
+                    {
+                        // These are local properties, save them internally.
+                        Response::ATCommand::Response at_rsp(api_frame);
+                        if (at_rsp.command == XBeeATCommand::ID)
                         {
                             Response::ATCommand::ID_Rsp rsp = at_rsp.ID();
                             network_id = rsp.network_id;
@@ -177,7 +179,7 @@ void XBeeNetwork::Service(uint32_t milliseconds)
             if (pending[i]->HasTimeoutExpired(milliseconds))
             {
                 pending[i]->CompleteWithError(Transaction::Error::TRANSACTION_TIMEOUT);
-                sprintf(print_buffer, "Transaction Timeout : %d", i);
+                sprintf(print_buffer, "RXBee: Transaction Timeout : %d", i);
                 Print(print_buffer);
             }
         }
@@ -243,9 +245,10 @@ void XBeeNetwork::Service(uint32_t milliseconds)
 
         // Transaction sent
         pending[i]->Sent(frame_count);
-        sprintf(print_buffer, "Transaction[%d] sent, id => %d", i, pending[i]->GetFrameID());
+#if RXBEE_DEBUG
+        sprintf(print_buffer, "RXBee: Transaction[%d] sent, id => %d", i, pending[i]->GetFrameID());
         Print(print_buffer);
-
+#endif
         // Increment frame count
         if (frame_count == RXBEE_MAX_FRAME_COUNT)
         {
@@ -328,9 +331,11 @@ Transaction* XBeeNetwork::BeginTransaction(Address addr)
             
     if (t != NULL)
     {
-        sprintf(print_buffer, "Transaction created[%d]", i);
+        
+#if RXBEE_DEBUG
+        sprintf(print_buffer, "RXBee: Transaction created[%d]", i);
         Print(print_buffer);
-
+#endif
         t->Initialize(addr, this);
     }
     
@@ -377,12 +382,23 @@ void XBeeNetwork::OnNext(const uint8_t* data, const uint16_t len)
         {
             // Overrun, reset rx_frame and rx_buff
             rx_frame.Initialize(api_mode);
-            Print("RXBee RX overrun");
+            Print("RXBee: RX overrun, buffer reset");
             rx_buff_tail_index = 0;
             rx_buff_head_index = 0;
             break;
         }
     }
+    
+#if RXBEE_DEBUG
+    size_t rx_buff_size = rx_buff_tail_index - rx_buff_head_index;
+    if (rx_buff_tail_index <  rx_buff_head_index)
+    {
+        rx_buff_size = RXBEE_RX_BUFFER_SIZE - rx_buff_head_index + rx_buff_tail_index;
+    }
+    sprintf(print_buffer, "RXBee: RX buffer size: %d", rx_buff_size);
+    Print(print_buffer);
+#endif
+        
 }
     
 void XBeeNetwork::OnComplete()
