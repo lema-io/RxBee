@@ -20,6 +20,10 @@ extern "C" {
     #define RXBEE_DEBUG 1
 #endif
 
+#ifndef RXBEE_TRANSACTION_TIMEOUT
+    #define RXBEE_TRANSACTION_TIMEOUT 500 
+#endif
+
     /* Provide C++ Compatibility */
 #ifdef __cplusplus
 }

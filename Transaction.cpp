@@ -79,7 +79,7 @@ void Transaction::Initialize(Address destination, XBeeNetwork* network)
     prev = NULL;
     next = NULL;
     apply_timeout = true;
-    timeout_remaining = 300;
+    timeout_remaining = RXBEE_TRANSACTION_TIMEOUT;
 }
     
 Frame* Transaction::GetFrame()

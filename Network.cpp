@@ -12,7 +12,7 @@
 namespace RXBee
 {
 
-char print_buffer[30];
+char print_buffer[256];
 
 XBeeNetwork::XBeeNetwork()
     : network_status(ModemStatus::UNKNOWN),
@@ -246,7 +246,9 @@ void XBeeNetwork::Service(uint32_t milliseconds)
         // Transaction sent
         pending[i]->Sent(frame_count);
 #if RXBEE_DEBUG
-        sprintf(print_buffer, "RXBee: Transaction[%d] sent, id => %d", i, pending[i]->GetFrameID());
+        uint64_t dest_addr = pending[i]->GetDestination();
+        uint32_t frame_id = pending[i]->GetFrameID();
+        sprintf(print_buffer, "RXBee: Transaction[%d] sent to %llx, id => %d", i, dest_addr, frame_id);
         Print(print_buffer);
 #endif
         // Increment frame count
@@ -388,17 +390,6 @@ void XBeeNetwork::OnNext(const uint8_t* data, const uint16_t len)
             break;
         }
     }
-    
-#if RXBEE_DEBUG
-    size_t rx_buff_size = rx_buff_tail_index - rx_buff_head_index;
-    if (rx_buff_tail_index <  rx_buff_head_index)
-    {
-        rx_buff_size = RXBEE_RX_BUFFER_SIZE - rx_buff_head_index + rx_buff_tail_index;
-    }
-    sprintf(print_buffer, "RXBee: RX buffer size: %d", rx_buff_size);
-    Print(print_buffer);
-#endif
-        
 }
     
 void XBeeNetwork::OnComplete()
