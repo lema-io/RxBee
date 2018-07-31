@@ -17,11 +17,15 @@ extern "C" {
 #endif
 
 #ifndef RXBEE_DEBUG
-    #define RXBEE_DEBUG 1
+    #define RXBEE_DEBUG 0
 #endif
 
 #ifndef RXBEE_TRANSACTION_TIMEOUT
-    #define RXBEE_TRANSACTION_TIMEOUT 500 
+    #define RXBEE_TRANSACTION_TIMEOUT 200 
+#endif
+
+#ifndef RXBEE_TRANSACTION_RETRY
+    #define RXBEE_TRANSACTION_RETRY 1 
 #endif
 
     /* Provide C++ Compatibility */

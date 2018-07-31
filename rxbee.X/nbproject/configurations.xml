@@ -13,6 +13,7 @@
       <itemPath>../Transaction.h</itemPath>
       <itemPath>../Types.h</itemPath>
       <itemPath>../RXBee_Config.h</itemPath>
+      <itemPath>../SpecificResponses.h</itemPath>
     </logicalFolder>
     <logicalFolder name="LinkerScript"
                    displayName="Linker Files"

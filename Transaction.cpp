@@ -24,7 +24,7 @@ Transaction::Transaction()
         dest_addr(RXBEE_LOCAL_ADDRESS),
         err(Error::NONE), state(State::FREE),
         on_complete_context(NULL), prev(NULL), next(NULL), queue_cmds(false),
-        apply_timeout(true)
+        apply_timeout(true), retries(0)
 {
     
 }
@@ -43,6 +43,7 @@ Transaction::Transaction(const Transaction& t)
     queue_cmds = t.queue_cmds;
     apply_timeout = t.apply_timeout;
     timeout_remaining = t.timeout_remaining;
+    retries = t.retries;
 }
 
 Transaction::~Transaction()
@@ -64,6 +65,7 @@ Transaction& Transaction::operator=(Transaction& t)
     queue_cmds = t.queue_cmds;
     apply_timeout = t.apply_timeout;
     timeout_remaining = t.timeout_remaining;
+    retries = t.retries;
 }
 
 void Transaction::Initialize(Address destination, XBeeNetwork* network)
@@ -80,6 +82,7 @@ void Transaction::Initialize(Address destination, XBeeNetwork* network)
     next = NULL;
     apply_timeout = true;
     timeout_remaining = RXBEE_TRANSACTION_TIMEOUT;
+    retries = RXBEE_TRANSACTION_RETRY;
 }
     
 Frame* Transaction::GetFrame()
@@ -107,9 +110,26 @@ Transaction::State Transaction::GetState() const
     return state;
 }
     
-bool Transaction::TryComplete(const Frame& frame)
+bool Transaction::TryComplete(Frame& frame)
 {
     bool completed = false;
+#if RXBEE_DEBUG
+        char buffer[30];
+#endif
+    
+    if ((current_frame.GetApiID() == ApiID::TRANSMIT_REQUEST) && 
+        (frame.GetApiID() == ApiID::TRANSMIT_STATUS))
+    {
+        Response::ApiFrame api_frame = Response::ApiFrame(&frame);
+        Response::TransmitStatus status = Response::TransmitStatus(api_frame);
+        if (status.extracted)
+        {
+#if RXBEE_DEBUG
+            sprintf(buffer, "Transaction status = %d, id => %d", status.delivery_status, target_frame_id);
+            net->Print(buffer);
+#endif
+        }
+    }
     
     if (frame.GetFrameID() == target_frame_id)
     {
@@ -117,7 +137,6 @@ bool Transaction::TryComplete(const Frame& frame)
         current_frame = frame;
         
 #if RXBEE_DEBUG
-        char buffer[30];
         sprintf(buffer, "Transaction completed, id => %d", target_frame_id);
         net->Print(buffer);
 #endif
@@ -150,9 +169,20 @@ void Transaction::CompleteWithError(Transaction::Error error)
     err = error;
     state = State::ERROR;
     
-    if (on_complete_handler != NULL)
+    if ((error == Transaction::Error::TRANSACTION_TIMEOUT) && 
+        (retries > 0))
+    {
+        err = Error::NONE;
+        retries--;
+        state = State::PENDING;
+    }
+    else if (on_complete_handler != NULL)
     {
         on_complete_handler(this, on_complete_context);
+    }
+    else
+    {
+        // Nothing
     }
     
     state = State::FREE;

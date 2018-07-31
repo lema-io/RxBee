@@ -111,7 +111,7 @@ protected:
     
     void Sent(uint16_t frame_id);
     
-    bool TryComplete(const Frame& frame);
+    bool TryComplete(Frame& frame);
     
     void SetError(Error error);
     
@@ -142,6 +142,7 @@ private:
     Transaction* next;
     bool apply_timeout;
     int32_t timeout_remaining;
+    int16_t retries;
 };
     
 } // namespace RXBee
