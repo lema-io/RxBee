@@ -169,14 +169,7 @@ void Transaction::CompleteWithError(Transaction::Error error)
     err = error;
     state = State::ERROR;
     
-    if ((error == Transaction::Error::TRANSACTION_TIMEOUT) && 
-        (retries > 0))
-    {
-        err = Error::NONE;
-        retries--;
-        state = State::PENDING;
-    }
-    else if (on_complete_handler != NULL)
+    if (on_complete_handler != NULL)
     {
         on_complete_handler(this, on_complete_context);
     }
@@ -259,6 +252,20 @@ bool Transaction::HasTimeoutExpired(int32_t elapsed)
     }
     
     return apply_timeout && (state == State::TIMEOUT);
+}
+
+
+bool Transaction::Retry()
+{
+    bool result = false;
+    if (retries > 0)
+    {
+        retries--;
+        state = State::PENDING;
+        result = true;
+    }
+    
+    return result;
 }
 
 void Transaction::HandleChainComplete(Transaction* transaction,

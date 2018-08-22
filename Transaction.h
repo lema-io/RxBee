@@ -91,6 +91,8 @@ public:
     
     bool HasTimeoutExpired(int32_t elapsed);
     
+    bool Retry();
+    
 protected:
     friend class XBeeNetwork;
     
@@ -115,7 +117,7 @@ protected:
     
     void SetError(Error error);
     
-    void SetFrame(const Frame& frame);
+    void SetFrame(const Frame& frame);  
     
     void CompleteWithError(Transaction::Error error);
     

@@ -174,9 +174,16 @@ void XBeeNetwork::Service(uint32_t milliseconds)
     i = 0;
     for (; i < pending.size(); ++i)
     {                
-        if (pending[i]->GetState() == Transaction::State::SENT)
+        if ((pending[i]->GetState() == Transaction::State::SENT) &&
+            (pending[i]->HasTimeoutExpired(milliseconds)))
         {
-            if (pending[i]->HasTimeoutExpired(milliseconds))
+            if (pending[i]->Retry())
+            {
+                sprintf(print_buffer, "RXBee: Transaction Timeout, Retrying : %d", i);
+                Print(print_buffer);
+                break;
+            }
+            else
             {
                 pending[i]->CompleteWithError(Transaction::Error::TRANSACTION_TIMEOUT);
                 sprintf(print_buffer, "RXBee: Transaction Timeout : %d", i);
