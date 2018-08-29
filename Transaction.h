@@ -77,6 +77,9 @@ public:
     
     Transaction* WriteApiMode(ApiMode mode);
     Transaction* ReadApiMode();
+    
+    Transaction* ReadMaxPacketPayloadBytes();
+    Transaction* WriteMaxPacketPayloadBytes(uint16_t max_rf_payload_bytes);
 
     Transaction* BeginCommandQueue();
 

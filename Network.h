@@ -86,6 +86,8 @@ public:
     void RegisterPrintHandler(PrintCallback handler);
     
     void Print(const char* msg);
+    
+    uint16_t GetMaxPacketPayloadBytes() const;
 
 protected:
     
@@ -125,6 +127,8 @@ private:
     char node_identifier[XBEE_AT_NI_IDENT_LEN];
     uint8_t preamble_id;
     uint16_t network_id;
+    
+    uint16_t max_packet_payload_bytes;
 };
 
 } // namespace XBee

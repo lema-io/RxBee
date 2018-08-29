@@ -377,6 +377,20 @@ Transaction* Transaction::ReadApiMode()
     return t;   
 }
 
+Transaction* Transaction::ReadMaxPacketPayloadBytes()
+{
+    Transaction* t = GetNextCmdTransaction();
+    t->GetFrame()->AddField(XBEE_CMD_NP);  
+    return t;   
+}
+
+Transaction* Transaction::WriteMaxPacketPayloadBytes(uint16_t max_rf_payload_bytes)
+{
+    Transaction* t = GetNextCmdTransaction();
+    t->GetFrame()->AddFields(XBEE_CMD_NP, max_rf_payload_bytes);  
+    return t;   
+}
+
 Transaction* Transaction::BeginCommandQueue() 
 { 
     queue_cmds = true; 
@@ -457,14 +471,16 @@ Transaction* Transaction::Transmit(const uint8_t* buffer, uint16_t n)
                      static_cast<uint8_t>(0),       // Max hops on broadcast
                      static_cast<uint8_t>(0xC0));   // Delivery method = DigiMesh
 
-        if (n > 0x3D)
+        uint16_t packet_max_payload_bytes = net->GetMaxPacketPayloadBytes();
+        
+        if (n > packet_max_payload_bytes)
         {
             // Transmit up to max payload bytes
-            f->AddData(buffer, 0x3D);
+            f->AddData(buffer, packet_max_payload_bytes);
 
             // Chain next section of data
 
-            Transmit(&buffer[0x3D], n - 0x3D);
+            Transmit(&buffer[packet_max_payload_bytes], n - packet_max_payload_bytes);
         }
         else
         {

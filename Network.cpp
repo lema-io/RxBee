@@ -19,7 +19,7 @@ XBeeNetwork::XBeeNetwork()
       rx_buff_head_index(0), rx_buff_tail_index(0),
       tx_buff_index(0), frame_count(0),
       frame_count_rollover(0), api_mode(ApiMode::ESCAPED),
-      print_handler(NULL)
+      print_handler(NULL), max_packet_payload_bytes(0x3D)
 {
     rx_frame.Initialize(api_mode);
 }
@@ -105,45 +105,58 @@ void XBeeNetwork::Service(uint32_t milliseconds)
                     {
                         Response::ATCommand::Response at_rsp(api_frame);
                         
-                        if (at_rsp.command == XBeeATCommand::ND)
-                        {
-                            Response::ATCommand::ND_Rsp rsp = at_rsp.ND();
-
-                            if (rsp.address != local_addr)
-                            {
-                                std::string id(rsp.node_identifier);
-                                DeviceDiscovered(rsp.address, id);
-                            }
-                        }
-                    }
-                    else if (api_frame.api_id == ApiID::AT_COMMAND_RESPONSE)
-                    {
+                        
+                        
                         // These are local properties, save them internally.
-                        Response::ATCommand::Response at_rsp(api_frame);
-                        if (at_rsp.command == XBeeATCommand::ID)
+                        switch (at_rsp.command)
                         {
-                            Response::ATCommand::ID_Rsp rsp = at_rsp.ID();
-                            network_id = rsp.network_id;
-                        }
-                        else if (at_rsp.command == XBeeATCommand::HP)
-                        {
-                            Response::ATCommand::HP_Rsp rsp = at_rsp.HP();
-                            preamble_id = rsp.preamble_id;
-                        }
-                        else if (at_rsp.command == XBeeATCommand::SH)
-                        {
-                            Response::ATCommand::SH_Rsp rsp = at_rsp.SH();
-                            local_addr |= rsp.address;
-                        }
-                        else if (at_rsp.command == XBeeATCommand::SL)
-                        {
-                            Response::ATCommand::SL_Rsp rsp = at_rsp.SL();
-                            local_addr |= rsp.address;
-                        }
-                        else if (at_rsp.command == XBeeATCommand::NI)
-                        {
-                            Response::ATCommand::NI_Rsp rsp = at_rsp.NI();
-                            std::strcpy(node_identifier, rsp.node_identifier); 
+                            case XBeeATCommand::ND:
+                            {
+                                Response::ATCommand::ND_Rsp rsp = at_rsp.ND();
+
+                                if (rsp.address != local_addr)
+                                {
+                                    std::string id(rsp.node_identifier);
+                                    DeviceDiscovered(rsp.address, id);
+                                }
+                                break;
+                            }
+                            case XBeeATCommand::ID:
+                            {
+                                Response::ATCommand::ID_Rsp rsp = at_rsp.ID();
+                                network_id = rsp.network_id;
+                                break;
+                            }
+                            case  XBeeATCommand::HP:
+                            {
+                                Response::ATCommand::HP_Rsp rsp = at_rsp.HP();
+                                preamble_id = rsp.preamble_id;
+                                break;
+                            }
+                            case XBeeATCommand::SH:
+                            {
+                                Response::ATCommand::SH_Rsp rsp = at_rsp.SH();
+                                local_addr |= rsp.address;
+                                break;
+                            }
+                            case XBeeATCommand::SL:
+                            {
+                                Response::ATCommand::SL_Rsp rsp = at_rsp.SL();
+                                local_addr |= rsp.address;
+                                break;
+                            }
+                            case XBeeATCommand::NI:
+                            {
+                                Response::ATCommand::NI_Rsp rsp = at_rsp.NI();
+                                std::strcpy(node_identifier, rsp.node_identifier); 
+                                break;
+                            }
+                            case XBeeATCommand::NP:
+                            {
+                                Response::ATCommand::NP_Rsp rsp = at_rsp.NP();
+                                max_packet_payload_bytes = rsp.max_rf_payload_bytes;
+                                break; 
+                            }
                         }
                     }
                 }
@@ -423,6 +436,11 @@ void XBeeNetwork::RegisterPrintHandler(XBeeNetwork::PrintCallback handler)
 void XBeeNetwork::Print(const char* msg)
 {
     if (print_handler != NULL) { print_handler(msg); }
+}
+
+uint16_t XBeeNetwork::GetMaxPacketPayloadBytes() const
+{
+    return max_packet_payload_bytes;
 }
 
 void XBeeNetwork::DeviceDiscovered(Address address, const std::string& node_id)
