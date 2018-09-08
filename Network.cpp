@@ -199,7 +199,7 @@ void XBeeNetwork::Service(uint32_t milliseconds)
             else
             {
                 pending[i]->CompleteWithError(Transaction::Error::TRANSACTION_TIMEOUT);
-                sprintf(print_buffer, "RXBee: Transaction Timeout : %d", i);
+                sprintf(print_buffer, "RXBee: ERROR Transaction Timeout : %d", i);
                 Print(print_buffer);
             }
         }
