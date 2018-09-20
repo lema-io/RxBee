@@ -154,7 +154,12 @@ void XBeeNetwork::Service(uint32_t milliseconds)
                             case XBeeATCommand::NP:
                             {
                                 Response::ATCommand::NP_Rsp rsp = at_rsp.NP();
-                                max_packet_payload_bytes = rsp.max_rf_payload_bytes;
+                                
+                                //Let's not fill frames all the way to the brim...
+                                //Leave two bytes off.  Also we subtract the amount of data we put
+                                //in a frame based on how many bytes of our payload need to be 
+                                //escaped...
+                                max_packet_payload_bytes = rsp.max_rf_payload_bytes - 2;
                                 break; 
                             }
                         }
