@@ -464,7 +464,8 @@ Transaction* Transaction::Transmit(const uint8_t* buffer, uint16_t n)
     if (t != NULL)
     {
         Frame* f = t->GetFrame();
-        f->Initialize(ApiID::TRANSMIT_REQUEST, net->GetApiMode());
+        ApiMode api_mode = net->GetApiMode();
+        f->Initialize(ApiID::TRANSMIT_REQUEST, api_mode);
 
         f->AddFields(dest_addr,
                      static_cast<uint16_t>(0xFFFE), // Reserved
@@ -472,6 +473,25 @@ Transaction* Transaction::Transmit(const uint8_t* buffer, uint16_t n)
                      static_cast<uint8_t>(0xC0));   // Delivery method = DigiMesh
 
         uint16_t packet_max_payload_bytes = net->GetMaxPacketPayloadBytes();
+        
+        // If API mode is escaped, reduce max packet size by the number of characters that will be escaped
+        if (api_mode == ApiMode::ESCAPED)
+        {
+            // Reduce max payload byte by 3 for the worst case of escaping length and checksum bytes
+            packet_max_payload_bytes -= 3;
+            
+            for(uint16_t i = 1; i < n; ++i)
+            {
+                // Reduce max payload size by number of escaped characters
+                if ((buffer[i] == XBEE_PACKET_START) ||
+                    (buffer[i] == XBEE_ESCAPE_BYTE) ||
+                    (buffer[i] == XBEE_XON) ||
+                    (buffer[i] == XBEE_XOFF))
+                {
+                    --packet_max_payload_bytes;
+                }
+            }
+        }
         
         if (n > packet_max_payload_bytes)
         {

@@ -372,6 +372,7 @@ std::vector<uint8_t> Frame::Serialize() const
     
     for(uint16_t i = 0; i < data.size(); ++i)
     {
+        // Apply escape character if needed
         if ((mode == ApiMode::ESCAPED) &&
             (i > 0) &&
             ((data[i] == XBEE_PACKET_START) ||
@@ -390,7 +391,20 @@ std::vector<uint8_t> Frame::Serialize() const
     
     if (mode != ApiMode::TRANSPARENT)
     {
-        serial_data.push_back(checksum);
+        // Escape checksum if needed
+        if ((mode == ApiMode::ESCAPED) &&
+            ((checksum == XBEE_PACKET_START) ||
+             (checksum == XBEE_ESCAPE_BYTE) ||
+             (checksum == XBEE_XON) ||
+             (checksum == XBEE_XOFF)))
+        {
+            serial_data.push_back(XBEE_ESCAPE_BYTE);
+            serial_data.push_back(checksum ^ XBEE_ESCAPE_MASK);
+        }
+        else
+        {
+            serial_data.push_back(checksum);
+        }
     }
     
     return serial_data;
