@@ -17,7 +17,7 @@ extern "C" {
 #endif
 
 #ifndef RXBEE_DEBUG
-    #define RXBEE_DEBUG 1
+    #define RXBEE_DEBUG 0
 #endif
 
 #ifndef RXBEE_TRANSACTION_TIMEOUT
