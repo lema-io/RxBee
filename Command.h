@@ -247,18 +247,4 @@ enum class XBeeATCommand {
     INVALID
 };
 
-XBeeATCommand ToXbeeATCmd(char* str)
-{
-    XBeeATCommand cmd;    
-    for (int16_t i = 0; i <= static_cast<int16_t>(XBeeATCommand::INVALID); ++i)
-    {
-        if (strcmp(str, XBEE_AT_CMD[i]) == 0)
-        {
-            cmd = static_cast<XBeeATCommand>(i);
-        }
-    }
-    
-    return cmd;
-}
-
 #endif // RXBEE_COMMAND_H

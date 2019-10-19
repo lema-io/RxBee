@@ -15,6 +15,21 @@ ApiFrame::ApiFrame(Frame* f) : frame(f), api_id(ApiID::UNKOWN), extracted(false)
     
 namespace ATCommand
 {
+    
+
+XBeeATCommand ToXbeeATCmd(char* str)
+{
+    XBeeATCommand cmd;    
+    for (int16_t i = 0; i <= static_cast<int16_t>(XBeeATCommand::INVALID); ++i)
+    {
+        if (strcmp(str, XBEE_AT_CMD[i]) == 0)
+        {
+            cmd = static_cast<XBeeATCommand>(i);
+        }
+    }
+    
+    return cmd;
+}
 
 Response::Response(ApiFrame& rsp) : frame(NULL), command(XBeeATCommand::INVALID), 
         status(Status::INVALID_STATUS), remote(false), source_addr(0),
@@ -72,7 +87,6 @@ Response::Response(ApiFrame& rsp) : frame(NULL), command(XBeeATCommand::INVALID)
         }
     }
 }
-
 
 AF_Rsp Response::AF() const
 {
