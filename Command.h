@@ -247,4 +247,5 @@ enum class XBeeATCommand {
     INVALID
 };
 
+
 #endif // RXBEE_COMMAND_H

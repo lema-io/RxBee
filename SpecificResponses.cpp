@@ -4,19 +4,7 @@
 namespace RXBee {
 namespace Response {
     
-ApiFrame::ApiFrame(Frame* f) : frame(f), api_id(ApiID::UNKOWN), extracted(false)
-{
-    if (f != NULL)
-    {
-        api_id = frame->GetApiID();
-        extracted = true;
-    }
-}
     
-namespace ATCommand
-{
-    
-
 XBeeATCommand ToXbeeATCmd(char* str)
 {
     XBeeATCommand cmd;    
@@ -30,6 +18,18 @@ XBeeATCommand ToXbeeATCmd(char* str)
     
     return cmd;
 }
+    
+ApiFrame::ApiFrame(Frame* f) : frame(f), api_id(ApiID::UNKOWN), extracted(false)
+{
+    if (f != NULL)
+    {
+        api_id = frame->GetApiID();
+        extracted = true;
+    }
+}
+    
+namespace ATCommand
+{
 
 Response::Response(ApiFrame& rsp) : frame(NULL), command(XBeeATCommand::INVALID), 
         status(Status::INVALID_STATUS), remote(false), source_addr(0),
@@ -87,6 +87,7 @@ Response::Response(ApiFrame& rsp) : frame(NULL), command(XBeeATCommand::INVALID)
         }
     }
 }
+
 
 AF_Rsp Response::AF() const
 {
